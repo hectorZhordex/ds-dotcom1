@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><base href="https://d16ilfvy4mv02r.cloudfront.net/workspaces/e0d31699d784070089cd9591137efcce/3092ffcb-c6ad-452b-adbb-caf0f3a841f5/files/">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Student Discipline Management System</title>
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║  SUPABASE TABLE SETUP - Run this SQL in Supabase Editor  ║
+  ║                                                          ║
+  ║  CREATE TABLE IF NOT EXISTS students (                   ║
+  ║    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),║
+  ║    name         text NOT NULL,                           ║
+  ║    class        text NOT NULL,                           ║
+  ║    index_number text,                                    ║
+  ║    photo        text,                                    ║
+  ║    created_at   timestamptz DEFAULT now()                ║
+  ║  );                                                      ║
+  ║                                                          ║
+  ║  CREATE TABLE IF NOT EXISTS discipline_records (         ║
+  ║    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),║
+  ║    student_id   uuid REFERENCES students(id) ON DELETE CASCADE,║
+  ║    date         date NOT NULL,                           ║
+  ║    reason       text NOT NULL,                           ║
+  ║    action_taken text,                                    ║
+  ║    created_at   timestamptz DEFAULT now()                ║
+  ║  );                                                      ║
+  ║                                                          ║
+  ║  -- Add photo column if table already exists:            ║
+  ║  ALTER TABLE students ADD COLUMN IF NOT EXISTS photo text;║
+  ║                                                          ║
+  ║  -- Add whatsapp_number column (run in Supabase SQL Ed): ║
+  ║  ALTER TABLE students                                    ║
+  ║    ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(20); ║
+  ║                                                          ║
+  ║  Also enable RLS or set policies as needed.              ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --primary:#2563eb; --primary-dark:#1d4ed8; --primary-light:#eff6ff;
+  --success:#16a34a; --success-light:#f0fdf4;
+  --danger:#dc2626;  --danger-light:#fef2f2;
+  --warning:#d97706; --warning-light:#fffbeb;
+  --purple:#7c3aed;  --purple-light:#f5f3ff;
+  --bg:#f1f5f9; --card:#fff; --border:#e2e8f0;
+  --text:#1e293b; --text-muted:#64748b;
+  --radius:12px; --radius-sm:8px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,.1),0 8px 32px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+
+/* ── LOADING OVERLAY ── */
+#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:9000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;backdrop-filter:blur(3px)}
+#loadingOverlay.show{display:flex}
+.spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;font-weight:500;color:var(--text-muted)}
+
+/* ── DB STATUS ── */
+.db-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600}
+.db-status .dot{width:7px;height:7px;border-radius:50%}
+.db-status.connected{background:#f0fdf4;color:#16a34a}
+.db-status.connected .dot{background:#16a34a;box-shadow:0 0 0 2px #bbf7d0}
+.db-status.connecting{background:#fef9c3;color:#ca8a04}
+.db-status.connecting .dot{background:#eab308;animation:pulse 1.2s ease infinite}
+.db-status.error{background:var(--danger-light);color:var(--danger)}
+.db-status.error .dot{background:var(--danger)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── LOGIN ── */
+#loginPage{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e40af 0%,#2563eb 50%,#3b82f6 100%);padding:16px}
+.login-card{background:white;border-radius:20px;padding:36px 28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:slideUp .4s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .icon-wrap{width:72px;height:72px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:20px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 24px rgba(37,99,235,.35)}
+.login-logo i{font-size:32px;color:white}
+.login-logo h1{font-size:22px;font-weight:700;color:var(--text)}
+.login-logo p{font-size:13px;color:var(--text-muted);margin-top:4px}
+
+/* ── FORMS ── */
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
+.form-group label span.req{color:var(--danger)}
+.input-wrap{position:relative}
+.input-wrap i.input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none}
+input[type=text],input[type=password],input[type=date],input[type=time],select,textarea{width:100%;padding:11px 14px 11px 40px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:'Inter',sans-serif;color:var(--text);background:#f8fafc;transition:border-color .2s,box-shadow .2s,background .2s;outline:none}
+input[type=text]:focus,input[type=password]:focus,input[type=date]:focus,input[type=time]:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1);background:white}
+input.no-icon,select.no-icon,textarea.no-icon{padding-left:14px}
+textarea{resize:vertical;min-height:80px;padding-top:11px}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 22px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:none;transition:all .2s;text-decoration:none}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
+.btn-primary{background:var(--primary);color:white}
+.btn-primary:hover:not(:disabled){background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.35)}
+.btn-danger{background:var(--danger);color:white}
+.btn-danger:hover:not(:disabled){background:#b91c1c}
+.btn-success{background:var(--success);color:white}
+.btn-success:hover:not(:disabled){background:#15803d}
+.btn-warning{background:var(--warning);color:white}
+.btn-warning:hover:not(:disabled){background:#b45309}
+.btn-purple{background:var(--purple);color:white}
+.btn-purple:hover:not(:disabled){background:#6d28d9}
+.btn-secondary{background:var(--border);color:var(--text)}
+.btn-secondary:hover:not(:disabled){background:#cbd5e1}
+.btn-outline{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
+.btn-outline:hover:not(:disabled){background:var(--primary-light)}
+.btn-outline-danger{background:transparent;color:var(--danger);border:1.5px solid var(--danger)}
+.btn-outline-danger:hover:not(:disabled){background:var(--danger-light)}
+.btn-sm{padding:7px 14px;font-size:12px}
+.btn-full{width:100%}
+
+/* ── LOGIN ERROR ── */
+.login-error{background:var(--danger-light);border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:var(--danger);margin-bottom:16px;display:none;align-items:center;gap:8px}
+
+/* ── APP SHELL ── */
+#appPage{display:none;flex-direction:column;min-height:100vh}
+
+/* ── HEADER ── */
+.header{background:white;border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.header-left{display:flex;align-items:center;gap:10px;min-width:0}
+.header-logo{width:34px;height:34px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.header-logo i{color:white;font-size:15px}
+.header-title{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-title span{color:var(--primary)}
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.user-badge{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--primary-light);border-radius:99px;font-size:12px;font-weight:500;color:var(--primary)}
+
+/* ── NAV TABS ── */
+.nav-tabs{background:white;border-bottom:1px solid var(--border);padding:0;display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{flex:1;min-width:60px;padding:13px 10px;font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;background:none;border-top:none;border-left:none;border-right:none;font-family:'Inter',sans-serif;white-space:nowrap}
+.nav-tab:hover{color:var(--primary);background:var(--primary-light)}
+.nav-tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+/* ── MAIN ── */
+.main{flex:1;padding:20px 16px;max-width:1280px;width:100%;margin:0 auto}
+.view{display:none}
+.view.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── PAGE HEADER ── */
+.page-header{margin-bottom:24px}
+.page-header h2{font-size:22px;font-weight:700;color:var(--text)}
+.page-header p{font-size:13px;color:var(--text-muted);margin-top:4px}
+
+/* ── STATS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:white;border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px}
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-icon i{font-size:20px}
+.stat-info h3{font-size:24px;font-weight:700;color:var(--text)}
+.stat-info p{font-size:12px;color:var(--text-muted);font-weight:500;margin-top:2px}
+
+/* ── CARDS ── */
+.card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.card-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.card-title i{color:var(--primary)}
+
+/* ── FORM GRID ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.form-grid .full{grid-column:1/-1}
+
+/* ── TABLE ── */
+.table-container{overflow-x:auto;border-radius:var(--radius-sm);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;min-width:600px}
+thead th{background:#f8fafc;padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{transition:background .15s}
+tbody tr:hover{background:#f8fafc}
+tbody td{padding:13px 16px;font-size:13px;color:var(--text);border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+.action-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ── SEARCH ── */
+.search-row{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-wrap{position:relative;flex:1;min-width:200px}
+.search-wrap i.s-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px}
+.search-wrap input{padding-left:38px;background:white}
+
+/* ── AUTOCOMPLETE DROPDOWN ── */
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid var(--primary);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);z-index:200;max-height:200px;overflow-y:auto;box-shadow:var(--shadow-md)}
+.autocomplete-item{padding:10px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .1s}
+.autocomplete-item:hover{background:var(--primary-light);color:var(--primary)}
+.autocomplete-item .ac-name{font-weight:600}
+.autocomplete-item .ac-meta{font-size:11px;color:var(--text-muted)}
+
+/* ── SMART SEARCH RESULT STATES ── */
+#searchResultArea{margin-top:20px}
+.found-card{background:white;border-radius:var(--radius);border:2px solid #22c55e;box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.found-header{background:linear-gradient(135deg,#f0fdf4,#dcfce7);padding:20px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.found-student-info{display:flex;align-items:center;gap:16px}
+.student-avatar{width:56px;height:56px;background:linear-gradient(135deg,#16a34a,#15803d);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.student-avatar i{font-size:24px;color:white}
+.student-avatar img{width:100%;height:100%;object-fit:cover;border-radius:14px}
+.student-name{font-size:18px;font-weight:700;color:var(--text)}
+.student-meta{display:flex;gap:12px;margin-top:4px;flex-wrap:wrap}
+.student-meta span{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px}
+.found-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:4px}
+.found-body{padding:20px 24px}
+
+.not-found-card{background:white;border-radius:var(--radius);border:2px dashed #fca5a5;box-shadow:var(--shadow);padding:32px 24px;text-align:center;margin-bottom:20px}
+.not-found-icon{width:64px;height:64px;background:var(--danger-light);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px}
+.not-found-icon i{font-size:28px;color:var(--danger)}
+.not-found-card h3{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
+.not-found-card p{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.not-found-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* ── STATUS BADGES ── */
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:600}
+.status-warning{background:#fef3c7;color:#92400e}
+.status-final{background:#fde8d8;color:#c2410c}
+.status-punished{background:var(--danger-light);color:var(--danger)}
+.offense-count{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:600;background:#f0f9ff;color:#0369a1}
+
+/* ── QUICK ADD ── */
+.quick-add-card{background:linear-gradient(135deg,#fffbeb,#fef3c7);border:2px solid #fbbf24;border-radius:var(--radius);padding:24px;margin-bottom:20px}
+.quick-add-card h3{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.quick-add-card h3 i{color:var(--warning)}
+.quick-add-card p{font-size:12px;color:var(--text-muted);margin-bottom:16px}
+
+/* ── INLINE FORM PANEL ── */
+.panel{background:#f8fafc;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:20px;margin-top:16px}
+.panel h4{font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text);display:flex;align-items:center;gap:8px}
+.panel h4 i{color:var(--primary)}
+
+/* ── PAGINATION ── */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding-top:16px;flex-wrap:wrap;gap:12px}
+.pagination-info{font-size:13px;color:var(--text-muted)}
+.page-btns{display:flex;gap:4px}
+.page-btn{min-width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--text);transition:all .15s;font-family:'Inter',sans-serif}
+.page-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.page-btn.active{background:var(--primary);border-color:var(--primary);color:white}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:flex-end;justify-content:center;padding:0;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex;animation:fadeIn .2s ease}
+.modal{background:white;border-radius:16px 16px 0 0;padding:24px 20px;max-width:100%;width:100%;box-shadow:var(--shadow-md);animation:slideUp .25s ease;max-height:92vh;overflow-y:auto}
+.modal h3{font-size:17px;font-weight:700;margin-bottom:10px}
+.modal p{font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+/* ── DATE FILTERS ── */
+.filter-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filter-chip{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--text-muted);transition:all .15px;font-family:'Inter',sans-serif}
+.filter-chip:hover,.filter-chip.active{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-state i{font-size:48px;margin-bottom:16px;color:#cbd5e1;display:block}
+.empty-state h3{font-size:16px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.empty-state p{font-size:13px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:12px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:white;z-index:9999;display:none;align-items:center;gap:10px;box-shadow:var(--shadow-md);width:calc(100% - 32px);max-width:400px}
+#toast.show{display:flex;animation:slideUpToast .3s ease}
+@keyframes slideUpToast{from{opacity:0;transform:translate(-50%,20px)}to{opacity:1;transform:translate(-50%,0)}}
+#toast.success{background:#16a34a}
+#toast.error{background:#dc2626}
+#toast.info{background:#2563eb}
+
+footer{text-align:center;padding:16px;font-size:12px;color:var(--text-muted);background:white;border-top:1px solid var(--border);margin-top:auto}
+
+/* ── DATE FILTER ROW ── */
+.date-filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.date-input-wrap{flex:1;min-width:130px;max-width:180px}
+.date-sep{font-size:12px;color:var(--text-muted);white-space:nowrap;flex-shrink:0}
+
+/* ── Desktop modal — centered above 641px ── */
+@media(min-width:641px){
+  .modal-overlay{align-items:center;padding:24px}
+  .modal{border-radius:16px;max-width:500px;padding:28px}
+  .modal-btns{flex-direction:row;flex-wrap:wrap}
+  .modal-btns .btn{width:auto}
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — TABLET  ≤ 900px
+══════════════════════════════════════ */
+@media(max-width:900px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr 1fr}
+  .search-row{flex-wrap:wrap}
+  .search-row>div[style]{width:100%!important}
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — MOBILE  ≤ 640px
+══════════════════════════════════════ */
+@media(max-width:640px){
+  /* Login */
+  .login-card{padding:28px 20px;border-radius:16px}
+  .login-logo .icon-wrap{width:58px;height:58px}
+  .login-logo i{font-size:26px}
+  .login-logo h1{font-size:19px}
+
+  /* Header */
+  .header{height:52px;padding:0 12px}
+  .header-title{font-size:13px}
+  .header-logo{width:30px;height:30px}
+  .header-logo i{font-size:13px}
+  .user-badge .user-label{display:none}
+  .user-badge{padding:5px 8px}
+  .db-status span{display:none}
+  .db-status{padding:4px 8px}
+
+  /* Nav tabs — icon only on very small, labels on mid */
+  .nav-tab{padding:10px 6px;font-size:11px;gap:4px}
+  .nav-tab span{font-size:10px}
+
+  /* Main */
+  .main{padding:12px 10px}
+  .card{padding:14px;margin-bottom:12px;border-radius:10px}
+
+  /* Page header */
+  .page-header{margin-bottom:16px}
+  .page-header h2{font-size:17px}
+  .page-header p{font-size:12px}
+
+  /* Stats grid — 2 columns on mobile */
+  .stats-grid{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .stat-card{padding:14px;gap:10px;border-radius:10px}
+  .stat-icon{width:40px;height:40px;border-radius:10px}
+  .stat-icon i{font-size:17px}
+  .stat-info h3{font-size:20px}
+  .stat-info p{font-size:11px}
+
+  /* Card header */
+  .card-header{margin-bottom:14px;gap:8px}
+  .card-title{font-size:14px}
+
+  /* Form grid — single column */
+  .form-grid{grid-template-columns:1fr;gap:12px}
+
+  /* Search row — stacks vertically */
+  .search-row{flex-direction:column;gap:8px;align-items:stretch}
+  .search-wrap{min-width:unset;width:100%}
+  .search-row select{width:100%!important}
+  /* Date filter row inside search-row */
+  .search-row>div[style*="display:flex"]{width:100%;flex-wrap:wrap;gap:8px}
+  .search-row .input-wrap{flex:1;min-width:120px}
+
+  /* Filter chips */
+  .filter-chips{gap:6px}
+  .filter-chip{font-size:11px;padding:4px 10px}
+
+  /* Tables — card-style on mobile */
+  .table-container{border:none;border-radius:0;background:transparent;box-shadow:none}
+  table{min-width:unset;border-collapse:separate;border-spacing:0 6px}
+  thead{display:none}
+  tbody tr{display:block;background:white;border-radius:10px;box-shadow:var(--shadow);margin-bottom:8px;padding:12px;border:1px solid var(--border)}
+  tbody tr:hover{background:white}
+  tbody td{display:flex;align-items:flex-start;padding:4px 0;font-size:13px;border-bottom:none;gap:6px}
+  tbody td:before{content:attr(data-label);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);min-width:90px;flex-shrink:0;padding-top:1px}
+  tbody td:first-child{display:none}  /* hide # column */
+  tbody td:last-child{padding-top:8px;border-top:1px solid var(--border);margin-top:4px}
+
+  /* Action buttons */
+  .action-btns{flex-wrap:wrap;gap:6px;width:100%;justify-content:flex-end}
+  .action-btns .btn{flex:1;min-width:80px;justify-content:center}
+
+  /* Found card */
+  .found-header{flex-direction:column;padding:14px}
+  .found-student-info{gap:12px;width:100%}
+  .student-name{font-size:15px}
+  .found-actions{width:100%;gap:6px;display:grid;grid-template-columns:1fr 1fr;}
+  .found-actions .btn{font-size:12px;padding:8px 10px;justify-content:center;width:100%}
+  .found-body{padding:14px 16px}
+
+  /* Not-found card */
+  .not-found-card{padding:24px 16px}
+  .not-found-icon{width:52px;height:52px}
+  .not-found-icon i{font-size:22px}
+  .not-found-card h3{font-size:16px}
+
+  /* Record rows */
+  .record-row{grid-template-columns:auto 1fr;gap:10px;padding:12px 0}
+  .record-row>div:last-child{grid-column:2}
+
+  /* Quick add card */
+  .quick-add-card{padding:16px}
+
+  /* Pagination */
+  .pagination{flex-direction:column;align-items:center;gap:10px;padding-top:12px}
+  .page-btns{flex-wrap:wrap;justify-content:center}
+  .page-btn{min-width:32px;height:32px;font-size:12px}
+
+  /* Modal — bottom sheet style */
+  .modal-overlay{align-items:flex-end}
+  .modal{border-radius:20px 20px 0 0;padding:20px 16px 28px;max-height:88vh}
+  .modal h3{font-size:16px}
+  .modal p{font-size:12px;margin-bottom:14px}
+  .modal-btns{flex-direction:column-reverse;gap:8px}
+  .modal-btns .btn{width:100%;justify-content:center}
+
+  /* Image upload */
+  .img-upload-area{flex-direction:column;align-items:center;text-align:center;gap:12px}
+  .img-upload-controls{align-items:center;width:100%}
+  .img-upload-btn-wrap{justify-content:center;width:100%}
+  .img-upload-preview-box{width:100px;height:100px}
+
+  /* Status breakdown grid */
+  #statusBreakdown>div{grid-template-columns:1fr!important}
+
+  /* Toast */
+  #toast{bottom:12px;font-size:13px;padding:12px 14px}
+
+  /* Footer */
+  footer{font-size:11px;padding:12px}
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE — VERY SMALL  ≤ 380px
+══════════════════════════════════════ */
+@media(max-width:380px){
+  .nav-tab span{display:none}
+  .nav-tab{padding:12px 8px}
+  .found-actions .btn span{font-size:11px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .stat-info h3{font-size:18px}
+}
+
+/* ── DIVIDER ── */
+.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
+
+/* ── RECORD HISTORY ROW ── */
+.record-row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:start;padding:14px 0;border-bottom:1px solid #f1f5f9}
+.record-row:last-child{border-bottom:none}
+.record-num{width:28px;height:28px;background:var(--primary-light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0}
+.record-details h4{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px}
+.record-details .meta{font-size:12px;color:var(--text-muted);display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.record-action{font-size:12px;background:var(--success-light);color:var(--success);padding:3px 10px;border-radius:99px;font-weight:500;margin-top:4px;display:inline-block}
+
+/* ── IMAGE UPLOAD ── */
+.img-upload-area{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.img-upload-preview-box{width:96px;height:96px;border-radius:12px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;position:relative;transition:border-color .2s}
+.img-upload-preview-box.has-img{border-style:solid;border-color:var(--primary)}
+.img-upload-preview-box img{width:100%;height:100%;object-fit:cover;display:block}
+.img-upload-preview-box .img-placeholder-icon{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text-muted);pointer-events:none}
+.img-upload-preview-box .img-placeholder-icon i{font-size:22px;color:#93c5fd}
+.img-upload-preview-box .img-placeholder-icon span{font-size:10px;font-weight:500;text-align:center;line-height:1.3}
+.img-upload-controls{flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.img-upload-controls p{font-size:12px;color:var(--text-muted);line-height:1.5;margin:0}
+.img-upload-btn-wrap{display:flex;gap:8px;flex-wrap:wrap}
+.img-file-input{display:none}
+@media(max-width:480px){
+  .img-upload-area{flex-direction:column;align-items:center;text-align:center}
+  .img-upload-controls{align-items:center}
+  .img-upload-btn-wrap{justify-content:center}
+}
+
+/* ── STUDENT MINI AVATAR (table) ── */
+.student-mini-avatar{width:32px;height:32px;border-radius:8px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2563eb,#1d4ed8);flex-shrink:0;vertical-align:middle;margin-right:8px}
+.student-mini-avatar img{width:100%;height:100%;object-fit:cover}
+.student-mini-avatar i{font-size:14px;color:white}
+</style>
+</head>
+<body>
+
+<!-- ── LOADING OVERLAY ── -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Connecting to database...</div>
+</div>
+
+<!-- ══════════════ LOGIN PAGE ══════════════ -->
+<div id="loginPage">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon-wrap"><i class="fas fa-shield-halved"></i></div>
+      <h1>Discipline Management</h1>
+      <p>School Administration Portal</p>
+    </div>
+    <div class="login-error" id="loginError">
+      <i class="fas fa-circle-exclamation"></i>
+      <span id="loginErrorMsg">Invalid credentials</span>
+    </div>
+    <div class="form-group">
+      <label>Username <span class="req">*</span></label>
+      <div class="input-wrap">
+        <i class="fas fa-user input-icon"></i>
+        <input type="text" id="loginUser" placeholder="Enter username" autocomplete="off"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Password <span class="req">*</span></label>
+      <div class="input-wrap">
+        <i class="fas fa-lock input-icon"></i>
+        <input type="password" id="loginPass" placeholder="Enter password"/>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" id="loginBtn" onclick="doLogin()">
+      <i class="fas fa-right-to-bracket"></i> Sign In
+    </button>
+    <div style="margin-top:20px;text-align:center">
+      <span style="display:inline-flex;align-items:center;gap:5px;background:#1a1a2e;color:#3ecf8e;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600"><i class="fas fa-database"></i> Powered by Supabase</span>
+    </div>
+  </div>
+  <footer style="background:transparent;border-top:none;color:rgba(255,255,255,.6);margin-top:20px">&copy; Dotcom One</footer>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div id="appPage">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo"><i class="fas fa-school"></i></div>
+      <div class="header-title">Discipline <span>System</span></div>
+    </div>
+    <div class="header-right">
+      <div class="db-status connecting" id="dbStatus"><div class="dot"></div><span>Connecting...</span></div>
+      <div class="user-badge"><i class="fas fa-user-shield"></i><span class="user-label" id="headerUser">Admin</span></div>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()"><i class="fas fa-right-from-bracket"></i> Logout</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-view="search" onclick="switchView('search')">
+      <i class="fas fa-magnifying-glass"></i><span>Smart Search</span>
+    </button>
+    <button class="nav-tab" data-view="dashboard" onclick="switchView('dashboard')">
+      <i class="fas fa-gauge-high"></i><span>Dashboard</span>
+    </button>
+    <button class="nav-tab" data-view="allRecords" onclick="switchView('allRecords')">
+      <i class="fas fa-list-ul"></i><span>All Records</span>
+    </button>
+    <button class="nav-tab" data-view="students" onclick="switchView('students')">
+      <i class="fas fa-users"></i><span>Students</span>
+    </button>
+    <button class="nav-tab" data-view="letters" onclick="switchView('letters')">
+      <i class="fab fa-whatsapp"></i><span>Letters</span>
+    </button>
+  </div>
+
+  <div class="main">
+
+    <!-- ══════════ SMART SEARCH VIEW ══════════ -->
+    <div class="view active" id="view-search">
+      <div class="page-header">
+        <h2><i class="fas fa-magnifying-glass" style="color:var(--primary);margin-right:8px"></i>Smart Search</h2>
+        <p>Search a student to view their history or add a new discipline record</p>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="card" style="padding:20px">
+        <div style="position:relative">
+          <div class="input-wrap">
+            <i class="fas fa-search input-icon"></i>
+            <input type="text" id="smartSearchInput" placeholder="Search by student name or index number..."
+              oninput="onSmartSearchInput()" onkeydown="onSmartSearchKey(event)" autocomplete="off"
+              style="font-size:15px;padding:14px 14px 14px 44px;border-radius:10px"/>
+          </div>
+          <div id="autocompleteList" class="autocomplete-list" style="display:none"></div>
+        </div>
+        <!-- Date filter chips -->
+        <div class="filter-chips" style="margin-top:12px;margin-bottom:0" id="dateFilterChips">
+          <span style="font-size:12px;color:var(--text-muted);align-self:center;margin-right:4px">Filter records:</span>
+          <button class="filter-chip active" data-days="all" onclick="setDateFilter(this,'all')">All Time</button>
+          <button class="filter-chip" data-days="7" onclick="setDateFilter(this,7)">Last 7 Days</button>
+          <button class="filter-chip" data-days="30" onclick="setDateFilter(this,30)">Last 30 Days</button>
+          <button class="filter-chip" data-days="90" onclick="setDateFilter(this,90)">Last 3 Months</button>
+        </div>
+      </div>
+
+      <!-- Result area -->
+      <div id="searchResultArea"></div>
+
+      <!-- Quick Add (when not found, show after searching) -->
+      <div id="quickAddSection" style="display:none">
+        <div class="quick-add-card">
+          <h3><i class="fas fa-bolt"></i> Quick Add Student + Record</h3>
+          <p>Student not found? Fill in the fields below to instantly create a student profile AND their first discipline record.</p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Student Name <span class="req">*</span></label>
+              <div class="input-wrap"><i class="fas fa-user input-icon"></i>
+                <input type="text" id="qaName" placeholder="Full name"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Class <span class="req">*</span></label>
+              <div class="input-wrap"><i class="fas fa-chalkboard input-icon"></i>
+                <input type="text" id="qaClass" placeholder="e.g. Grade 10-A"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Index Number <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+              <div class="input-wrap"><i class="fas fa-hashtag input-icon"></i>
+                <input type="text" id="qaIndex" placeholder="Student index number"/>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>WhatsApp Number <span class="req">*</span></label>
+              <div class="input-wrap"><i class="fab fa-whatsapp input-icon" style="color:#25D366"></i>
+                <input type="text" id="qaWhatsapp" placeholder="947XXXXXXXX" maxlength="12"
+                  oninput="this.value=this.value.replace(/[^0-9]/g,'');autoFormatWhatsApp(this)"/>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Format: 94XXXXXXXXX (11-12 digits, starting with 94)</div>
+            </div>
+            <div class="form-group">
+              <label>Date <span class="req">*</span></label>
+              <div class="input-wrap"><i class="fas fa-calendar input-icon"></i>
+                <input type="date" id="qaDate"/>
+              </div>
+            </div>
+            <!-- ── PHOTO FIELD (Quick Add) ── -->
+            <div class="form-group full">
+              <label>Student Photo <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+              <div class="img-upload-area">
+                <div class="img-upload-preview-box" id="qaPhotoBox" onclick="document.getElementById('qaPhoto').click()" style="cursor:pointer" title="Click to upload photo">
+                  <img id="qaPhotoPreview" src="" alt="" style="display:none"/>
+                  <div class="img-placeholder-icon" id="qaPhotoPlaceholder">
+                    <i class="fas fa-camera"></i>
+                    <span>Upload Photo</span>
+                  </div>
+                </div>
+                <div class="img-upload-controls">
+                  <p>Upload a student photo (JPG, PNG, JPEG, WebP, GIF).<br>Click the box or use the button below.</p>
+                  <div class="img-upload-btn-wrap">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('qaPhoto').click()">
+                      <i class="fas fa-upload"></i> Choose Image
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="qaPhotoClear" style="display:none" onclick="clearPhoto('qaPhoto','qaPhotoPreview','qaPhotoPlaceholder','qaPhotoClear','qaPhotoBox')">
+                      <i class="fas fa-times"></i> Remove
+                    </button>
+                  </div>
+                </div>
+                <input type="file" id="qaPhoto" class="img-file-input" accept="image/*"
+                  onchange="handlePhotoSelect(this,'qaPhotoPreview','qaPhotoPlaceholder','qaPhotoClear','qaPhotoBox')"/>
+              </div>
+            </div>
+            <div class="form-group full">
+              <label>Reason / Offense <span class="req">*</span></label>
+              <div class="input-wrap"><i class="fas fa-triangle-exclamation input-icon"></i>
+                <input type="text" id="qaReason" placeholder="Describe the offense or rule violation"/>
+              </div>
+            </div>
+            <div class="form-group full">
+              <label>Action Taken <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+              <div class="input-wrap"><i class="fas fa-gavel input-icon"></i>
+                <input type="text" id="qaAction" placeholder="e.g. Verbal warning, detention, letter to parents"/>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-warning" onclick="quickAddStudentAndRecord()">
+            <i class="fas fa-bolt"></i> Save Student + Record
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /view-search -->
+
+
+    <!-- ══════════ DASHBOARD VIEW ══════════ -->
+    <div class="view" id="view-dashboard">
+      <div class="page-header">
+        <h2>Overview Dashboard</h2>
+        <p>Live summary from Supabase</p>
+      </div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-icon" style="background:#eff6ff"><i class="fas fa-spinner fa-spin" style="color:#2563eb"></i></div><div class="stat-info"><h3>-</h3><p>Loading...</p></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-clock-rotate-left"></i> Recent Discipline Records</div>
+          <button class="btn btn-outline btn-sm" onclick="switchView('allRecords')"><i class="fas fa-arrow-right"></i> View All</button>
+        </div>
+        <div id="recentRecords"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-exclamation-circle"></i> Students by Status</div>
+        </div>
+        <div id="statusBreakdown"></div>
+      </div>
+    </div>
+
+
+    <!-- ══════════ ALL RECORDS VIEW ══════════ -->
+    <div class="view" id="view-allRecords">
+      <div class="page-header">
+        <h2>All Discipline Records</h2>
+        <p>Every offense record across all students</p>
+      </div>
+      <div class="card">
+        <div class="search-row">
+          <div class="search-wrap">
+            <i class="fas fa-search s-icon"></i>
+            <input type="text" id="recordsSearch" placeholder="Search by name, class, or reason..." oninput="handleRecordsSearch()"/>
+          </div>
+          <select id="recordsClassFilter" class="no-icon" style="width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px" onchange="handleRecordsSearch()">
+            <option value="">All Classes</option>
+          </select>
+          <div class="date-filter-row">
+            <div class="input-wrap date-input-wrap">
+              <i class="fas fa-calendar input-icon"></i>
+              <input type="date" id="recordsDateFrom" title="From date" onchange="handleRecordsSearch()" style="padding:11px 14px 11px 38px;font-size:13px"/>
+            </div>
+            <span class="date-sep">to</span>
+            <div class="input-wrap date-input-wrap">
+              <i class="fas fa-calendar input-icon"></i>
+              <input type="date" id="recordsDateTo" title="To date" onchange="handleRecordsSearch()" style="padding:11px 14px 11px 38px;font-size:13px"/>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearAllRecordsFilters()" title="Clear all filters"><i class="fas fa-times"></i> Clear</button>
+            <button class="btn btn-danger btn-sm" id="exportAllPdfBtn" onclick="exportAllRecordsPDF()"><i class="fas fa-file-pdf"></i> <span>Export PDF</span></button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Student</th><th>Class</th><th>Date</th>
+                <th>Reason</th><th>Action Taken</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="allRecordsBody"></tbody>
+          </table>
+        </div>
+        <div id="allRecordsEmpty" class="empty-state" style="display:none">
+          <i class="fas fa-folder-open"></i><h3>No Records Found</h3><p>No discipline records match your search.</p>
+        </div>
+        <div class="pagination">
+          <div class="pagination-info" id="allRecordsPagInfo"></div>
+          <div class="page-btns" id="allRecordsPageBtns"></div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════ LETTERS VIEW ══════════ -->
+    <div class="view" id="view-letters">
+      <div class="page-header">
+        <h2><i class="fab fa-whatsapp" style="color:#25D366;margin-right:8px"></i>Send WhatsApp Letters</h2>
+        <p>Select a student, choose a reason, and send a discipline letter directly to the parent via WhatsApp</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-search"></i> Find Student</div>
+        </div>
+        <div style="position:relative">
+          <div class="input-wrap">
+            <i class="fas fa-search input-icon"></i>
+            <input type="text" id="letterSearchInput" placeholder="Search by student name or index number..."
+              oninput="onLetterSearchInput()" autocomplete="off" style="font-size:14px"/>
+          </div>
+          <div id="letterAutocompleteList" class="autocomplete-list" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Student selected panel -->
+      <div id="letterStudentPanel" style="display:none">
+        <div class="card" style="border:2px solid #25D366">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+            <div id="letterStudentAvatar"></div>
+            <div>
+              <div id="letterStudentName" style="font-size:17px;font-weight:700;color:var(--text)"></div>
+              <div id="letterStudentMeta" style="font-size:13px;color:var(--text-muted);margin-top:4px"></div>
+              <div id="letterWhatsAppDisplay" style="margin-top:6px;font-size:13px;font-weight:600;color:#25D366"></div>
+            </div>
+          </div>
+
+          <!-- Reason selector -->
+          <div class="form-group">
+            <label>Select Reason for Letter <span class="req">*</span></label>
+            <select id="letterReasonSelect" class="no-icon" onchange="onLetterReasonChange()" style="padding:11px 14px">
+              <option value="">-- Choose a reason --</option>
+              <option value="hair_not_cut">Hair Not Cut According to School Standards</option>
+              <option value="hair_length">Hair Length Exceeding Permitted Limit</option>
+              <option value="improper_hairstyle">Improper Hairstyle</option>
+              <option value="beard_not_shaved">Beard Not Shaved</option>
+              <option value="repeated_grooming">Repeated Grooming Violation</option>
+              <option value="failure_instructions">Failure to Follow Instructions</option>
+              <option value="disruptive_behavior">Disruptive Behavior in School Premises</option>
+              <option value="inappropriate_language">Use of Inappropriate Language</option>
+              <option value="late_arrival">Late Arrival to School</option>
+              <option value="leaving_premises">Leaving Classroom or School Premises Without Permission</option>
+              <option value="failure_discipline">Failure to Maintain Proper Discipline</option>
+              <option value="repeated_disciplinary">Repeated Disciplinary Concern</option>
+              <option value="improper_uniform">Improper School Uniform</option>
+              <option value="incomplete_uniform">Incomplete School Uniform</option>
+              <option value="parent_meeting">Urgent Parent Meeting Required</option>
+              <option value="custom">Other (Custom Message)</option>
+            </select>
+          </div>
+
+          <!-- Custom reason -->
+          <div class="form-group" id="letterCustomReasonGroup" style="display:none">
+            <label>Custom Reason <span class="req">*</span></label>
+            <div class="input-wrap"><i class="fas fa-pen input-icon"></i>
+              <input type="text" id="letterCustomReason" placeholder="Describe the reason for the letter" oninput="generateLetterPreview()"/>
+            </div>
+          </div>
+
+          <!-- Letter preview -->
+          <div id="letterPreviewGroup" style="display:none">
+            <div class="form-group">
+              <label>Letter Preview</label>
+              <textarea id="letterPreview" class="no-icon" style="min-height:160px;font-size:13px;line-height:1.7" oninput="/* allow editing */"></textarea>
+            </div>
+            <button class="btn btn-success" id="letterSendBtn" onclick="sendWhatsAppLetter()" style="background:#25D366;width:100%">
+              <i class="fab fa-whatsapp"></i> Send via WhatsApp
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ STUDENTS VIEW ══════════ -->
+    <div class="view" id="view-students">
+      <div class="page-header">
+        <h2>Student Registry</h2>
+        <p>All registered students with their offense count</p>
+      </div>
+      <div class="card">
+        <div class="search-row">
+          <div class="search-wrap">
+            <i class="fas fa-search s-icon"></i>
+            <input type="text" id="studentsSearch" placeholder="Search students..." oninput="renderStudentsTable()"/>
+          </div>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Class</th><th>Index No.</th><th>WhatsApp Number</th><th>Total Offenses</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="studentsBody"></tbody>
+          </table>
+        </div>
+        <div id="studentsEmpty" class="empty-state" style="display:none">
+          <i class="fas fa-users"></i><h3>No Students</h3><p>Search and add students using the Smart Search tab.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+  <footer>&copy; Dotcom One</footer>
+</div><!-- /appPage -->
+
+
+<!-- ══════════ ADD RECORD MODAL ══════════ -->
+<div class="modal-overlay" id="addRecordModal">
+  <div class="modal">
+    <h3><i class="fas fa-plus-circle" style="color:var(--primary);margin-right:8px"></i>Add Discipline Record</h3>
+    <p id="addRecordModalSubtitle" style="margin-bottom:16px">Adding record for <strong id="addRecordStudentName"></strong></p>
+    <input type="hidden" id="addRecordStudentId"/>
+    <div class="form-group">
+      <label>Date <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-calendar input-icon"></i>
+        <input type="date" id="arDate"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reason / Offense <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-triangle-exclamation input-icon"></i>
+        <input type="text" id="arReason" placeholder="Describe the offense or rule violation"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Action Taken <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="input-wrap"><i class="fas fa-gavel input-icon"></i>
+        <input type="text" id="arAction" placeholder="e.g. Verbal warning, detention, letter to parents"/>
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('addRecordModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewRecord()"><i class="fas fa-save"></i> Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADD STUDENT MODAL ══════════ -->
+<div class="modal-overlay" id="addStudentModal">
+  <div class="modal">
+    <h3><i class="fas fa-user-plus" style="color:var(--success);margin-right:8px"></i>Add New Student</h3>
+    <p>Create a new student profile. You can add their first discipline record right after.</p>
+    <div class="form-group">
+      <label>Student Name <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-user input-icon"></i>
+        <input type="text" id="asName" placeholder="Full name"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Class <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-chalkboard input-icon"></i>
+        <input type="text" id="asClass" placeholder="e.g. Grade 10-A"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Index Number <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="input-wrap"><i class="fas fa-hashtag input-icon"></i>
+        <input type="text" id="asIndex" placeholder="Student index number"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>WhatsApp Number <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fab fa-whatsapp input-icon" style="color:#25D366"></i>
+        <input type="text" id="asWhatsapp" placeholder="947XXXXXXXX" maxlength="12"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'');autoFormatWhatsApp(this)"/>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Format: 94XXXXXXXXX (11-12 digits, starting with 94)</div>
+    </div>
+    <!-- ── PHOTO FIELD (Add Student Modal) ── -->
+    <div class="form-group">
+      <label>Student Photo <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="img-upload-area">
+        <div class="img-upload-preview-box" id="asPhotoBox" onclick="document.getElementById('asPhoto').click()" style="cursor:pointer" title="Click to upload photo">
+          <img id="asPhotoPreview" src="" alt="" style="display:none"/>
+          <div class="img-placeholder-icon" id="asPhotoPlaceholder">
+            <i class="fas fa-camera"></i>
+            <span>Upload Photo</span>
+          </div>
+        </div>
+        <div class="img-upload-controls">
+          <p>Upload a student photo (JPG, PNG, JPEG, WebP, GIF).<br>Click the box or use the button.</p>
+          <div class="img-upload-btn-wrap">
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('asPhoto').click()">
+              <i class="fas fa-upload"></i> Choose Image
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="asPhotoClear" style="display:none" onclick="clearPhoto('asPhoto','asPhotoPreview','asPhotoPlaceholder','asPhotoClear','asPhotoBox')">
+              <i class="fas fa-times"></i> Remove
+            </button>
+          </div>
+        </div>
+        <input type="file" id="asPhoto" class="img-file-input" accept="image/*"
+          onchange="handlePhotoSelect(this,'asPhotoPreview','asPhotoPlaceholder','asPhotoClear','asPhotoBox')"/>
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('addStudentModal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveNewStudent()"><i class="fas fa-user-plus"></i> Add Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ EDIT RECORD MODAL ══════════ -->
+<div class="modal-overlay" id="editRecordModal">
+  <div class="modal">
+    <h3><i class="fas fa-pen" style="color:var(--warning);margin-right:8px"></i>Edit Discipline Record</h3>
+    <input type="hidden" id="editRecordId"/>
+    <div class="form-group">
+      <label>Date <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-calendar input-icon"></i>
+        <input type="date" id="erDate"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reason / Offense <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-triangle-exclamation input-icon"></i>
+        <input type="text" id="erReason" placeholder="Describe the offense"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Action Taken <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="input-wrap"><i class="fas fa-gavel input-icon"></i>
+        <input type="text" id="erAction" placeholder="Action taken"/>
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('editRecordModal')">Cancel</button>
+      <button class="btn btn-warning" onclick="updateRecord()"><i class="fas fa-save"></i> Update Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ EDIT STUDENT MODAL ══════════ -->
+<div class="modal-overlay" id="editStudentModal">
+  <div class="modal">
+    <h3><i class="fas fa-user-pen" style="color:var(--purple);margin-right:8px"></i>Edit Student Details</h3>
+    <p>Update the student's profile information.</p>
+    <input type="hidden" id="editStudentId"/>
+    <div class="form-group">
+      <label>Student Name <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-user input-icon"></i>
+        <input type="text" id="esName" placeholder="Full name"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Class <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fas fa-chalkboard input-icon"></i>
+        <input type="text" id="esClass" placeholder="e.g. Grade 10-A"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Index Number <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="input-wrap"><i class="fas fa-hashtag input-icon"></i>
+        <input type="text" id="esIndex" placeholder="Student index number"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>WhatsApp Number <span class="req">*</span></label>
+      <div class="input-wrap"><i class="fab fa-whatsapp input-icon" style="color:#25D366"></i>
+        <input type="text" id="esWhatsapp" placeholder="947XXXXXXXX" maxlength="12"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'');autoFormatWhatsApp(this)"/>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Format: 94XXXXXXXXX (11-12 digits, starting with 94)</div>
+    </div>
+    <!-- ── PHOTO FIELD (Edit Student Modal) ── -->
+    <div class="form-group">
+      <label>Student Photo <small style="color:var(--text-muted);font-weight:400">(optional)</small></label>
+      <div class="img-upload-area">
+        <div class="img-upload-preview-box" id="esPhotoBox" onclick="document.getElementById('esPhoto').click()" style="cursor:pointer" title="Click to change photo">
+          <img id="esPhotoPreview" src="" alt="" style="display:none"/>
+          <div class="img-placeholder-icon" id="esPhotoPlaceholder">
+            <i class="fas fa-camera"></i>
+            <span>Upload Photo</span>
+          </div>
+        </div>
+        <div class="img-upload-controls">
+          <p>Upload a new photo to replace the existing one (JPG, PNG, JPEG, WebP, GIF).</p>
+          <div class="img-upload-btn-wrap">
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('esPhoto').click()">
+              <i class="fas fa-upload"></i> Choose Image
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="esPhotoClear" style="display:none" onclick="clearPhoto('esPhoto','esPhotoPreview','esPhotoPlaceholder','esPhotoClear','esPhotoBox')">
+              <i class="fas fa-times"></i> Remove
+            </button>
+          </div>
+        </div>
+        <input type="file" id="esPhoto" class="img-file-input" accept="image/*"
+          onchange="handlePhotoSelect(this,'esPhotoPreview','esPhotoPlaceholder','esPhotoClear','esPhotoBox')"/>
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button class="btn btn-secondary" onclick="closeModal('editStudentModal')">Cancel</button>
+      <button class="btn btn-purple" onclick="saveEditStudent()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DELETE CONFIRM MODAL ══════════ -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3><i class="fas fa-trash" style="color:var(--danger);margin-right:8px"></i>Confirm Delete</h3>
+    <p id="deleteModalMsg">Are you sure you want to permanently delete this record? This cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()"><i class="fas fa-trash"></i> Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TOAST ══════════ -->
+<div id="toast"><i class="fas fa-check-circle"></i><span id="toastMsg"></span></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  SUPABASE SETUP
+// ═══════════════════════════════════════════════════════════════
+const { createClient } = window.supabase;
+const SUPABASE_URL = 'https://ydxdpzinswyscwrfiynj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_NhD8vEyVsFUd6cfWwMinDQ_N4KaYfQa';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false
+  }
+});
+
+const T_STUDENTS = 'students';
+const T_RECORDS  = 'discipline_records';
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+const SESSION_KEY = 'dws_session_v2';
+let allStudents  = [];   // [{id, name, class, index_number, photo, ...}]
+let allDRecords  = [];   // [{id, student_id, date, reason, action_taken, ...}]
+let filteredAllRecords = [];
+let allRecordsPage = 1;
+const PAGE_SIZE    = 15;
+let deleteTarget   = { type: null, id: null };
+let activeDateFilter = 'all';
+
+// ═══════════════════════════════════════════════════════════════
+//  LOADING & STATUS
+// ═══════════════════════════════════════════════════════════════
+function showLoading(msg='Working...'){
+  document.getElementById('loadingText').textContent=msg;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading(){ document.getElementById('loadingOverlay').classList.remove('show'); }
+function setDbStatus(s){
+  const el=document.getElementById('dbStatus');
+  const labels={connected:'Connected',connecting:'Connecting...',error:'DB Error'};
+  el.className='db-status '+s;
+  el.innerHTML=`<div class="dot"></div><span>${labels[s]}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  IMAGE UPLOAD HELPERS
+// ═══════════════════════════════════════════════════════════════
+function handlePhotoSelect(input, previewId, placeholderId, clearBtnId, boxId){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const prev = document.getElementById(previewId);
+    const ph   = document.getElementById(placeholderId);
+    const box  = document.getElementById(boxId);
+    const cb   = document.getElementById(clearBtnId);
+    prev.src   = e.target.result;
+    prev.style.display = 'block';
+    ph.style.display   = 'none';
+    if(box) box.classList.add('has-img');
+    if(cb)  cb.style.display = 'inline-flex';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPhoto(inputId, previewId, placeholderId, clearBtnId, boxId){
+  const inp  = document.getElementById(inputId);
+  const prev = document.getElementById(previewId);
+  const ph   = document.getElementById(placeholderId);
+  const cb   = document.getElementById(clearBtnId);
+  const box  = document.getElementById(boxId);
+  if(inp)  inp.value = '';
+  if(prev){ prev.src=''; prev.style.display='none'; }
+  if(ph)   ph.style.display = 'flex';
+  if(cb)   cb.style.display = 'none';
+  if(box)  box.classList.remove('has-img');
+}
+
+/** Returns the base64 data URL from a preview img, or null. */
+function getPhotoDataURL(previewId){
+  const el = document.getElementById(previewId);
+  return (el && el.src && el.src.startsWith('data:')) ? el.src : null;
+}
+
+/** Populate an existing photo field in edit modal. */
+function populatePhotoField(photoData, previewId, placeholderId, clearBtnId, boxId){
+  const prev = document.getElementById(previewId);
+  const ph   = document.getElementById(placeholderId);
+  const cb   = document.getElementById(clearBtnId);
+  const box  = document.getElementById(boxId);
+  if(photoData){
+    prev.src = photoData;
+    prev.style.display = 'block';
+    ph.style.display   = 'none';
+    if(box) box.classList.add('has-img');
+    if(cb)  cb.style.display = 'inline-flex';
+  } else {
+    prev.src = '';
+    prev.style.display = 'none';
+    ph.style.display   = 'flex';
+    if(box) box.classList.remove('has-img');
+    if(cb)  cb.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════════
+async function doLogin(){
+  const user=document.getElementById('loginUser').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!user||!pass){showLoginError('Please enter both username and password.');return;}
+  if(user==='Manuja'&&pass==='superadmin@dotcomone'){
+    const btn=document.getElementById('loginBtn');
+    btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Signing in...';
+    hideLoginError();
+    try{
+      sessionStorage.setItem(SESSION_KEY,JSON.stringify({user}));
+      document.getElementById('loginPage').style.display='none';
+      document.getElementById('appPage').style.display='flex';
+      document.getElementById('headerUser').textContent=user;
+      await initApp();
+    }catch(e){
+      document.getElementById('loginPage').style.display='flex';
+      document.getElementById('appPage').style.display='none';
+      showLoginError('Database error. Please try again.');
+    }finally{
+      btn.disabled=false; btn.innerHTML='<i class="fas fa-right-to-bracket"></i> Sign In';
+    }
+  }else{showLoginError('Invalid username or password.');}
+}
+function showLoginError(msg){const el=document.getElementById('loginError');document.getElementById('loginErrorMsg').textContent=msg;el.style.display='flex';}
+function hideLoginError(){document.getElementById('loginError').style.display='none';}
+function doLogout(){
+  sessionStorage.removeItem(SESSION_KEY);
+  allStudents=[]; allDRecords=[];
+  document.getElementById('appPage').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+  document.getElementById('loginUser').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('searchResultArea').innerHTML='';
+  document.getElementById('quickAddSection').style.display='none';
+}
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('loginPage').style.display!=='none'&&e.key==='Enter') doLogin();
+});
+window.addEventListener('load',async()=>{
+  const sess=sessionStorage.getItem(SESSION_KEY);
+  if(sess){
+    const{user}=JSON.parse(sess);
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('appPage').style.display='flex';
+    document.getElementById('headerUser').textContent=user;
+    await initApp();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  APP INIT
+// ═══════════════════════════════════════════════════════════════
+async function initApp(){
+  setDbStatus('connecting');
+  showLoading('Loading data from Supabase...');
+  try{
+    await refreshAll();
+    setDbStatus('connected');
+    renderDashboard();
+  }catch(err){
+    setDbStatus('error');
+    showToast('Database error: '+(err.message||'Could not connect'),'error');
+    console.error(err);
+  }finally{ hideLoading(); }
+}
+async function refreshAll(){
+  const[s,r]=await Promise.all([
+    db.from(T_STUDENTS).select('*').order('name'),
+    db.from(T_RECORDS).select('*').order('date',{ascending:false})
+  ]);
+  if(s.error) throw s.error;
+  if(r.error) throw r.error;
+  allStudents  = s.data||[];
+  allDRecords  = r.data||[];
+  populateClassFilter();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VIEW NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function switchView(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelector(`[data-view="${view}"]`).classList.add('active');
+  if(view==='dashboard') renderDashboard();
+  if(view==='allRecords'){allRecordsPage=1;renderAllRecordsTable();}
+  if(view==='students') renderStudentsTable();
+  if(view==='letters') initLettersView();
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// ═══════════════════════════════════════════════════════════════
+//  SUPABASE CRUD
+// ═══════════════════════════════════════════════════════════════
+async function dbInsertStudent(payload){
+  const{data,error}=await db.from(T_STUDENTS).insert([payload]).select().single();
+  if(error)throw error; return data;
+}
+async function dbInsertRecord(payload){
+  const{data,error}=await db.from(T_RECORDS).insert([payload]).select().single();
+  if(error)throw error; return data;
+}
+async function dbUpdateRecord(id,payload){
+  const{data,error}=await db.from(T_RECORDS).update(payload).eq('id',id).select().single();
+  if(error)throw error; return data;
+}
+async function dbDeleteRecord(id){
+  const{error}=await db.from(T_RECORDS).delete().eq('id',id);
+  if(error)throw error;
+}
+async function dbDeleteStudent(id){
+  const{error}=await db.from(T_STUDENTS).delete().eq('id',id);
+  if(error)throw error;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── WhatsApp number helpers ──
+function formatPhone(number){
+  const n=String(number||'').replace(/[^0-9]/g,'');
+  if(n.startsWith('0')&&n.length>=9) return '94'+n.substring(1);
+  return n;
+}
+function autoFormatWhatsApp(input){
+  let val=input.value.replace(/[^0-9]/g,'');
+  if(val.startsWith('0')&&val.length>=9){ val='94'+val.substring(1); input.value=val; }
+}
+function validateWhatsApp(num){
+  const n=String(num||'').replace(/[^0-9]/g,'');
+  return n.length>=11&&n.length<=12&&n.startsWith('94');
+}
+function today(){return new Date().toISOString().split('T')[0];}
+function formatDate(d){
+  if(!d)return'-';
+  try{return new Date(d+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}catch{return d;}
+}
+function getStudentRecords(sid){ return allDRecords.filter(r=>r.student_id===sid); }
+function getOffenseCount(sid){ return getStudentRecords(sid).length; }
+function getStatus(count){
+  if(count<=0) return null;
+  if(count===1) return{label:'Warning',cls:'status-warning',icon:'fa-triangle-exclamation'};
+  if(count===2) return{label:'Final Warning',cls:'status-final',icon:'fa-exclamation-circle'};
+  return{label:'Punished',cls:'status-punished',icon:'fa-ban'};
+}
+function statusBadge(count){
+  const s=getStatus(count);
+  if(!s)return'<span style="color:var(--text-muted);font-size:12px">-</span>';
+  return`<span class="status-badge ${s.cls}"><i class="fas ${s.icon}"></i>${s.label}</span>`;
+}
+function filterByDate(records){
+  if(activeDateFilter==='all')return records;
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-Number(activeDateFilter));
+  const cutoffStr=cutoff.toISOString().split('T')[0];
+  return records.filter(r=>r.date&&r.date>=cutoffStr);
+}
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  const icons={success:'fas fa-check-circle',error:'fas fa-times-circle',info:'fas fa-info-circle'};
+  t.className=`${type} show`;
+  t.innerHTML=`<i class="${icons[type]||icons.success}"></i><span>${esc(msg)}</span>`;
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>{t.className=type;t.style.display='none';t.style.display='';},3500);
+}
+function populateClassFilter(){
+  const sel=document.getElementById('recordsClassFilter');
+  const current=sel.value;
+  const classes=[...new Set(allStudents.map(s=>s.class).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All Classes</option>'+classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value=current;
+}
+
+/** Render a student avatar — shows photo if available, else icon. */
+function avatarHtml(student, size=56, radius=14){
+  if(student && student.photo){
+    return`<div class="student-avatar" style="width:${size}px;height:${size}px;border-radius:${radius}px;background:none">
+      <img src="${esc(student.photo)}" alt="${esc(student.name)}" style="border-radius:${radius}px"/>
+    </div>`;
+  }
+  return`<div class="student-avatar" style="width:${size}px;height:${size}px;border-radius:${radius}px">
+    <i class="fas fa-user-graduate"></i>
+  </div>`;
+}
+
+/** Mini avatar for table rows */
+function miniAvatarHtml(student){
+  if(student && student.photo){
+    return`<span class="student-mini-avatar"><img src="${esc(student.photo)}" alt="${esc(student.name)}"/></span>`;
+  }
+  return`<span class="student-mini-avatar"><i class="fas fa-user"></i></span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SMART SEARCH
+// ═══════════════════════════════════════════════════════════════
+let searchDebounce=null;
+function onSmartSearchInput(){
+  clearTimeout(searchDebounce);
+  const q=document.getElementById('smartSearchInput').value.trim().toLowerCase();
+  if(q.length<1){ document.getElementById('autocompleteList').style.display='none'; return; }
+  const matches=allStudents.filter(s=>
+    s.name.toLowerCase().includes(q)||(s.index_number||'').toLowerCase().includes(q)
+  ).slice(0,8);
+  renderAutocomplete(matches);
+  searchDebounce=setTimeout(()=>runSmartSearch(q),400);
+}
+function renderAutocomplete(matches){
+  const list=document.getElementById('autocompleteList');
+  if(!matches.length){list.style.display='none';return;}
+  list.innerHTML=matches.map(s=>{
+    const cnt=getOffenseCount(s.id);
+    const thumb = s.photo
+      ? `<img src="${esc(s.photo)}" style="width:28px;height:28px;border-radius:7px;object-fit:cover;flex-shrink:0"/>`
+      : `<i class="fas fa-user-circle" style="color:var(--primary);font-size:20px"></i>`;
+    return`<div class="autocomplete-item" onclick="selectStudent('${s.id}')">
+      ${thumb}
+      <div><div class="ac-name">${esc(s.name)}</div>
+      <div class="ac-meta">${esc(s.class)}${s.index_number?' · '+esc(s.index_number):''} · ${cnt} offense${cnt!==1?'s':''}</div></div>
+    </div>`;
+  }).join('');
+  list.style.display='block';
+}
+function selectStudent(sid){
+  document.getElementById('autocompleteList').style.display='none';
+  const s=allStudents.find(x=>x.id===sid);
+  if(s) document.getElementById('smartSearchInput').value=s.name;
+  showStudentFound(sid);
+  document.getElementById('quickAddSection').style.display='none';
+}
+function onSmartSearchKey(e){
+  if(e.key==='Escape'){document.getElementById('autocompleteList').style.display='none';}
+  if(e.key==='Enter'){
+    document.getElementById('autocompleteList').style.display='none';
+    runSmartSearch(document.getElementById('smartSearchInput').value.trim().toLowerCase());
+  }
+}
+function runSmartSearch(q){
+  if(!q){document.getElementById('searchResultArea').innerHTML='';return;}
+  const match=allStudents.find(s=>
+    s.name.toLowerCase()===q||
+    s.name.toLowerCase().includes(q)||
+    (s.index_number||'').toLowerCase()===q
+  );
+  if(match){ showStudentFound(match.id); document.getElementById('quickAddSection').style.display='none'; }
+  else{ showStudentNotFound(q); }
+}
+function setDateFilter(el,val){
+  activeDateFilter=val;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  // re-render if result is shown
+  const area=document.getElementById('searchResultArea');
+  if(area.dataset.currentStudent) showStudentFound(area.dataset.currentStudent);
+}
+
+function showStudentFound(sid){
+  const student=allStudents.find(s=>s.id===sid);
+  if(!student)return;
+  const area=document.getElementById('searchResultArea');
+  area.dataset.currentStudent=sid;
+  const recs=filterByDate(getStudentRecords(sid));
+  const totalRecs=getStudentRecords(sid);
+  const count=totalRecs.length;
+  const status=getStatus(count);
+
+  let recordsHtml='';
+  if(recs.length===0){
+    recordsHtml=`<div style="padding:20px 0;text-align:center;color:var(--text-muted)"><i class="fas fa-folder-open" style="margin-right:6px"></i>No records in selected period</div>`;
+  }else{
+    recordsHtml=recs.map((r,i)=>{
+      const num=recs.length-i;
+      return`<div class="record-row">
+        <div class="record-num">${num}</div>
+        <div class="record-details">
+          <h4>${esc(r.reason)}</h4>
+          <div class="meta">
+            <span><i class="fas fa-calendar" style="color:var(--text-muted)"></i> ${formatDate(r.date)}</span>
+          </div>
+          ${r.action_taken?`<span class="record-action"><i class="fas fa-gavel"></i> ${esc(r.action_taken)}</span>`:''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-outline btn-sm" onclick="openEditRecord('${r.id}')" title="Edit"><i class="fas fa-pen"></i></button>
+          <button class="btn btn-outline-danger btn-sm" onclick="openDeleteRecord('${r.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  area.innerHTML=`
+    <div class="found-card">
+      <div class="found-header">
+        <div class="found-student-info">
+          ${avatarHtml(student,56,14)}
+          <div>
+            <div class="student-name">${esc(student.name)}</div>
+            <div class="student-meta">
+              <span><i class="fas fa-chalkboard"></i> ${esc(student.class)}</span>
+              ${student.index_number?`<span><i class="fas fa-hashtag"></i> ${esc(student.index_number)}</span>`:''}
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+              <span class="offense-count"><i class="fas fa-file-alt"></i> Total Offenses: ${count}</span>
+              ${status?`<span class="status-badge ${status.cls}"><i class="fas ${status.icon}"></i>${status.label}</span>`:'<span class="status-badge" style="background:#f0fdf4;color:#16a34a"><i class="fas fa-check"></i>No Offenses</span>'}
+            </div>
+          </div>
+        </div>
+        <div class="found-actions">
+          <button class="btn btn-primary btn-sm" onclick="openAddRecord('${student.id}','${esc(student.name).replace(/'/g,"\\'")}')"><i class="fas fa-plus"></i><span> Add Record</span></button>
+          <button class="btn btn-outline btn-sm" onclick="openEditStudent('${student.id}')"><i class="fas fa-pen"></i><span> Edit</span></button>
+          <button class="btn btn-success btn-sm" onclick="exportStudentPDF('${student.id}')"><i class="fas fa-file-pdf"></i><span> Export PDF</span></button>
+          <button class="btn btn-outline-danger btn-sm" onclick="openDeleteStudent('${student.id}','${esc(student.name).replace(/'/g,"\\'")}')"><i class="fas fa-user-minus"></i><span> Remove</span></button>
+        </div>
+      </div>
+      <div class="found-body">
+        <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">
+          Discipline History ${activeDateFilter!=='all'?'(filtered)':''}
+        </div>
+        ${recordsHtml}
+      </div>
+    </div>`;
+}
+
+function showStudentNotFound(q){
+  const area=document.getElementById('searchResultArea');
+  area.dataset.currentStudent='';
+  area.innerHTML=`
+    <div class="not-found-card">
+      <div class="not-found-icon"><i class="fas fa-user-slash"></i></div>
+      <h3>Student Not Found</h3>
+      <p>No student matching "<strong>${esc(q)}</strong>" was found in the system.</p>
+      <div class="not-found-actions">
+        <button class="btn btn-success" onclick="openAddStudentWithPrefill('${esc(q).replace(/'/g,"\\'")}')">
+          <i class="fas fa-user-plus"></i> Add New Student
+        </button>
+      </div>
+    </div>`;
+  // Pre-fill Quick Add
+  document.getElementById('qaName').value=document.getElementById('smartSearchInput').value;
+  document.getElementById('qaDate').value=today();
+  document.getElementById('quickAddSection').style.display='block';
+}
+
+// Close autocomplete on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-wrap')&&!e.target.closest('.autocomplete-item'))
+    document.getElementById('autocompleteList').style.display='none';
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  ADD RECORD MODAL
+// ═══════════════════════════════════════════════════════════════
+function openAddRecord(sid, sname){
+  document.getElementById('addRecordStudentId').value=sid;
+  document.getElementById('addRecordStudentName').textContent=sname;
+  document.getElementById('arDate').value=today();
+  document.getElementById('arReason').value='';
+  document.getElementById('arAction').value='';
+  document.getElementById('addRecordModal').classList.add('open');
+}
+async function saveNewRecord(){
+  const sid    =document.getElementById('addRecordStudentId').value;
+  const date   =document.getElementById('arDate').value;
+  const reason =document.getElementById('arReason').value.trim();
+  const action =document.getElementById('arAction').value.trim();
+  if(!date||!reason){showToast('Date and Reason are required.','error');return;}
+  showLoading('Saving record...');
+  try{
+    await dbInsertRecord({student_id:sid,date,reason,action_taken:action||null});
+    await refreshAll();
+    closeModal('addRecordModal');
+    showToast('Discipline record added!','success');
+    // Refresh search result if showing this student
+    const area=document.getElementById('searchResultArea');
+    if(area.dataset.currentStudent===sid) showStudentFound(sid);
+    renderDashboard();
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not save'),'error');
+  }finally{hideLoading();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADD STUDENT MODAL
+// ═══════════════════════════════════════════════════════════════
+function openAddStudentWithPrefill(nameHint){
+  document.getElementById('asName').value=nameHint||'';
+  document.getElementById('asClass').value='';
+  document.getElementById('asIndex').value='';
+  // Reset photo field
+  clearPhoto('asPhoto','asPhotoPreview','asPhotoPlaceholder','asPhotoClear','asPhotoBox');
+  document.getElementById('addStudentModal').classList.add('open');
+}
+async function saveNewStudent(){
+  const name=document.getElementById('asName').value.trim();
+  const cls =document.getElementById('asClass').value.trim();
+  const idx =document.getElementById('asIndex').value.trim();
+  const photo=getPhotoDataURL('asPhotoPreview');
+  const waRaw=document.getElementById('asWhatsapp').value.trim();
+  const wa=formatPhone(waRaw);
+  if(!name||!cls){showToast('Name and Class are required.','error');return;}
+  if(!wa||!validateWhatsApp(wa)){showToast('Please enter a valid WhatsApp number (e.g. 94771234567).','error');return;}
+  // Duplicate check
+  if(allStudents.some(s=>s.name.toLowerCase()===name.toLowerCase()&&s.class.toLowerCase()===cls.toLowerCase())){
+    showToast('A student with this name and class already exists.','error');return;
+  }
+  showLoading('Creating student...');
+  try{
+    const newStudent=await dbInsertStudent({name,class:cls,index_number:idx||null,photo:photo||null,whatsapp_number:wa});
+    await refreshAll();
+    closeModal('addStudentModal');
+    showToast(`Student "${name}" added!`,'success');
+    // Immediately show student and open add record
+    document.getElementById('smartSearchInput').value=name;
+    showStudentFound(newStudent.id);
+    document.getElementById('quickAddSection').style.display='none';
+    setTimeout(()=>openAddRecord(newStudent.id,name),300);
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not create student'),'error');
+  }finally{hideLoading();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  QUICK ADD (Student + Record at once)
+// ═══════════════════════════════════════════════════════════════
+async function quickAddStudentAndRecord(){
+  const name  =document.getElementById('qaName').value.trim();
+  const cls   =document.getElementById('qaClass').value.trim();
+  const idx   =document.getElementById('qaIndex').value.trim();
+  const date  =document.getElementById('qaDate').value;
+  const reason=document.getElementById('qaReason').value.trim();
+  const action=document.getElementById('qaAction').value.trim();
+  const photo =getPhotoDataURL('qaPhotoPreview');
+  const waRaw =document.getElementById('qaWhatsapp').value.trim();
+  const wa    =formatPhone(waRaw);
+  if(!name||!cls){showToast('Name and Class are required.','error');return;}
+  if(!date||!reason){showToast('Date and Reason are required.','error');return;}
+  if(!wa||!validateWhatsApp(wa)){showToast('Please enter a valid WhatsApp number (e.g. 94771234567).','error');return;}
+  if(allStudents.some(s=>s.name.toLowerCase()===name.toLowerCase()&&s.class.toLowerCase()===cls.toLowerCase())){
+    showToast('A student with this name and class already exists. Use Smart Search to find them.','error');return;
+  }
+  showLoading('Creating student and record...');
+  try{
+    const newStudent=await dbInsertStudent({name,class:cls,index_number:idx||null,photo:photo||null,whatsapp_number:wa});
+    await dbInsertRecord({student_id:newStudent.id,date,reason,action_taken:action||null});
+    await refreshAll();
+    document.getElementById('quickAddSection').style.display='none';
+    document.getElementById('smartSearchInput').value=name;
+    showStudentFound(newStudent.id);
+    showToast(`Student and record saved for "${name}"!`,'success');
+    renderDashboard();
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not save'),'error');
+  }finally{hideLoading();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EDIT RECORD
+// ═══════════════════════════════════════════════════════════════
+function openEditRecord(rid){
+  const rec=allDRecords.find(r=>r.id===rid);
+  if(!rec)return;
+  document.getElementById('editRecordId').value=rid;
+  document.getElementById('erDate').value=rec.date||today();
+  document.getElementById('erReason').value=rec.reason||'';
+  document.getElementById('erAction').value=rec.action_taken||'';
+  document.getElementById('editRecordModal').classList.add('open');
+}
+async function updateRecord(){
+  const rid   =document.getElementById('editRecordId').value;
+  const date  =document.getElementById('erDate').value;
+  const reason=document.getElementById('erReason').value.trim();
+  const action=document.getElementById('erAction').value.trim();
+  if(!date||!reason){showToast('Date and Reason are required.','error');return;}
+  showLoading('Updating record...');
+  try{
+    await dbUpdateRecord(rid,{date,reason,action_taken:action||null});
+    await refreshAll();
+    closeModal('editRecordModal');
+    showToast('Record updated!','success');
+    const area=document.getElementById('searchResultArea');
+    if(area.dataset.currentStudent){
+      showStudentFound(area.dataset.currentStudent);
+    }
+    renderDashboard();
+    if(document.getElementById('view-allRecords').classList.contains('active')) renderAllRecordsTable();
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not update'),'error');
+  }finally{hideLoading();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EDIT STUDENT
+// ═══════════════════════════════════════════════════════════════
+function openEditStudent(sid){
+  const s=allStudents.find(x=>x.id===sid);
+  if(!s)return;
+  document.getElementById('editStudentId').value=sid;
+  document.getElementById('esName').value=s.name||'';
+  document.getElementById('esClass').value=s.class||'';
+  document.getElementById('esIndex').value=s.index_number||'';
+  document.getElementById('esWhatsapp').value=s.whatsapp_number||'';
+  // Populate photo field with existing photo (if any)
+  populatePhotoField(s.photo||null,'esPhotoPreview','esPhotoPlaceholder','esPhotoClear','esPhotoBox');
+  // Reset file input so onChange fires if same file is chosen again
+  document.getElementById('esPhoto').value='';
+  document.getElementById('editStudentModal').classList.add('open');
+}
+async function saveEditStudent(){
+  const sid  =document.getElementById('editStudentId').value;
+  const name =document.getElementById('esName').value.trim();
+  const cls  =document.getElementById('esClass').value.trim();
+  const idx  =document.getElementById('esIndex').value.trim();
+  const waRaw=document.getElementById('esWhatsapp').value.trim();
+  const wa   =formatPhone(waRaw);
+  // Get photo: if a new file was selected use it; else keep whatever is in preview
+  const esPreview = document.getElementById('esPhotoPreview');
+  const photo = (esPreview && esPreview.src && !esPreview.src.endsWith(window.location.href))
+    ? (esPreview.src.startsWith('data:') ? esPreview.src : (esPreview.src || null))
+    : null;
+  if(!name||!cls){showToast('Name and Class are required.','error');return;}
+  if(!wa||!validateWhatsApp(wa)){showToast('Please enter a valid WhatsApp number (e.g. 94771234567).','error');return;}
+  // Duplicate check (exclude self)
+  if(allStudents.some(s=>s.id!==sid&&s.name.toLowerCase()===name.toLowerCase()&&s.class.toLowerCase()===cls.toLowerCase())){
+    showToast('Another student with this name and class already exists.','error');return;
+  }
+  showLoading('Updating student…');
+  try{
+    const{error}=await db.from(T_STUDENTS).update({name,class:cls,index_number:idx||null,photo:photo||null,whatsapp_number:wa}).eq('id',sid);
+    if(error)throw error;
+    await refreshAll();
+    closeModal('editStudentModal');
+    showToast('Student details updated!','success');
+    // Update search box and re-render found card
+    document.getElementById('smartSearchInput').value=name;
+    showStudentFound(sid);
+    if(document.getElementById('view-students').classList.contains('active')) renderStudentsTable();
+    renderDashboard();
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not update'),'error');
+  }finally{hideLoading();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DELETE
+// ═══════════════════════════════════════════════════════════════
+function openDeleteRecord(rid){
+  deleteTarget={type:'record',id:rid};
+  document.getElementById('deleteModalMsg').innerHTML='Are you sure you want to permanently delete this discipline record? This <strong>cannot be undone</strong>.';
+  document.getElementById('deleteModal').classList.add('open');
+}
+function openDeleteStudent(sid,sname){
+  deleteTarget={type:'student',id:sid};
+  const cnt=getOffenseCount(sid);
+  document.getElementById('deleteModalMsg').innerHTML=`Are you sure you want to remove <strong>${esc(sname)}</strong>? This will also delete all <strong>${cnt} discipline record${cnt!==1?'s':''}</strong> linked to this student. This <strong>cannot be undone</strong>.`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+async function confirmDelete(){
+  const btn=document.getElementById('confirmDeleteBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Deleting...';
+  showLoading('Deleting...');
+  try{
+    if(deleteTarget.type==='record'){
+      await dbDeleteRecord(deleteTarget.id);
+      showToast('Record deleted.','info');
+    }else if(deleteTarget.type==='student'){
+      // Records have ON DELETE CASCADE in DB, but also delete manually if not set
+      const sRecs=getStudentRecords(deleteTarget.id);
+      for(const r of sRecs) await dbDeleteRecord(r.id);
+      await dbDeleteStudent(deleteTarget.id);
+      document.getElementById('searchResultArea').innerHTML='';
+      document.getElementById('searchResultArea').dataset.currentStudent='';
+      document.getElementById('smartSearchInput').value='';
+      showToast('Student and all records deleted.','info');
+    }
+    await refreshAll();
+    closeModal('deleteModal');
+    renderDashboard();
+    if(document.getElementById('view-allRecords').classList.contains('active')) renderAllRecordsTable();
+    if(document.getElementById('view-students').classList.contains('active')) renderStudentsTable();
+    // Re-render search if student still exists
+    const area=document.getElementById('searchResultArea');
+    if(area.dataset.currentStudent&&deleteTarget.type==='record') showStudentFound(area.dataset.currentStudent);
+  }catch(err){
+    showToast('Error: '+(err.message||'Could not delete'),'error');
+  }finally{
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-trash"></i> Yes, Delete';
+    hideLoading();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PDF EXPORT — Student Full Discipline History
+// ═══════════════════════════════════════════════════════════════
+function exportStudentPDF(sid){
+  if(!window.jspdf){showToast('PDF library not loaded yet, please wait a moment.','error');return;}
+  const student=allStudents.find(s=>s.id===sid);
+  if(!student)return;
+  const records=getStudentRecords(sid).sort((a,b)=>a.date>b.date?-1:1);
+  const count=records.length;
+  const status=getStatus(count);
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210, M=15;
+
+  function _buildPDF(photoDataUrl){
+  // ── Header Banner
+  doc.setFillColor(37,99,235);
+  doc.rect(0,0,W,36,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(17);doc.setFont('helvetica','bold');
+  doc.text('STUDENT DISCIPLINE REPORT',M,14);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('School Administration Portal  •  Confidential',M,22);
+  doc.text('Generated: '+new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}),W-M,22,{align:'right'});
+
+  // ── Student Info Card
+  const cardH=photoDataUrl?50:42;
+  doc.setFillColor(248,250,252);
+  doc.roundedRect(M,42,W-M*2,cardH,3,3,'F');
+  doc.setDrawColor(226,232,240);
+  doc.roundedRect(M,42,W-M*2,cardH,3,3,'S');
+
+  // Photo
+  const photoX=M+4; const photoY=44; const photoS=38;
+  if(photoDataUrl){
+    try{
+      doc.addImage(photoDataUrl,'JPEG',photoX,photoY,photoS,photoS);
+      doc.setDrawColor(200,200,200);
+      doc.rect(photoX,photoY,photoS,photoS);
+    }catch(e){}
+  }
+  const textX=photoDataUrl?M+photoS+8:M+6;
+
+  doc.setTextColor(30,41,59);
+  doc.setFontSize(15);doc.setFont('helvetica','bold');
+  doc.text(student.name,textX,54);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);
+  doc.text('CLASS',textX,62);
+  doc.text('INDEX NO.',textX+60,62);
+  doc.text('TOTAL OFFENSES',textX+115,62);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);
+  doc.text(student.class||'—',textX,68);
+  doc.text(student.index_number||'—',textX+60,68);
+  doc.text(String(count),textX+115,68);
+
+  // Status badge
+  if(status){
+    const colors={status_warning:[146,64,14],status_final:[194,65,12],status_punished:[220,38,38]};
+    const bgColors={status_warning:[254,243,199],status_final:[253,232,216],status_punished:[254,242,242]};
+    const key='status_'+status.label.toLowerCase().replace(' ','_').replace(' ','_');
+    const bg=bgColors[key]||[239,246,255];
+    const fg=colors[key]||[37,99,235];
+    doc.setFillColor(...bg);
+    doc.roundedRect(textX,72,40,7,2,2,'F');
+    doc.setTextColor(...fg);doc.setFontSize(9);doc.setFont('helvetica','bold');
+    doc.text(status.label,textX+20,77,{align:'center'});
+  }
+
+  // ── Records Table
+  let y=42+cardH+8;
+  doc.setTextColor(30,41,59);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  doc.text('Discipline Record History',M,y); y+=8;
+
+  if(records.length===0){
+    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);
+    doc.text('No discipline records on file.',M,y);
+  }else{
+    // Table header
+    doc.setFillColor(37,99,235);
+    doc.rect(M,y,W-M*2,8,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(8);doc.setFont('helvetica','bold');
+    doc.text('#',M+3,y+5.5);
+    doc.text('DATE',M+12,y+5.5);
+    doc.text('REASON / OFFENSE',M+42,y+5.5);
+    doc.text('ACTION TAKEN',M+130,y+5.5);
+    y+=8;
+
+    records.forEach((r,i)=>{
+      const rowH=12;
+      if(y+rowH>280){doc.addPage();y=20;
+        doc.setFillColor(37,99,235);doc.rect(M,y,W-M*2,8,'F');
+        doc.setTextColor(255,255,255);doc.setFontSize(8);doc.setFont('helvetica','bold');
+        doc.text('#',M+3,y+5.5);doc.text('DATE',M+12,y+5.5);
+        doc.text('REASON / OFFENSE',M+42,y+5.5);doc.text('ACTION TAKEN',M+130,y+5.5);
+        y+=8;
+      }
+      const bg=i%2===0?[255,255,255]:[248,250,252];
+      doc.setFillColor(...bg);doc.rect(M,y,W-M*2,rowH,'F');
+      doc.setDrawColor(226,232,240);doc.rect(M,y,W-M*2,rowH);
+      doc.setTextColor(30,41,59);doc.setFontSize(9);doc.setFont('helvetica','normal');
+      doc.text(String(records.length-i),M+3,y+7.5);
+      doc.text(r.date?new Date(r.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—',M+12,y+7.5);
+      const reasonLines=doc.splitTextToSize(r.reason||'',80);
+      doc.text(reasonLines[0]+(reasonLines.length>1?'…':''),M+42,y+7.5);
+      const actionLines=doc.splitTextToSize(r.action_taken||'—',55);
+      doc.text(actionLines[0]+(actionLines.length>1?'…':''),M+130,y+7.5);
+      y+=rowH;
+    });
+  }
+
+  // ── Footer
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let p=1;p<=pageCount;p++){
+    doc.setPage(p);
+    doc.setFillColor(37,99,235);
+    doc.rect(0,283,W,14,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(8);
+    doc.text('© Dotcom One  •  Confidential Discipline Report  •  Page '+p+' of '+pageCount,W/2,291,{align:'center'});
+  }
+
+  const safeName=student.name.replace(/[^a-z0-9]/gi,'_');
+  doc.save('Discipline_'+safeName+'.pdf');
+  showToast('PDF exported for '+student.name,'success');
+  } // end _buildPDF
+
+  // Load photo then build PDF
+  if(student.photo){
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=function(){
+      try{
+        const canvas=document.createElement('canvas');
+        canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;
+        canvas.getContext('2d').drawImage(img,0,0);
+        _buildPDF(canvas.toDataURL('image/jpeg',0.85));
+      }catch(e){_buildPDF(null);}
+    };
+    img.onerror=function(){_buildPDF(null);};
+    img.src=student.photo;
+  }else{
+    _buildPDF(null);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+function renderDashboard(){
+  const totalStudents=allStudents.length;
+  const totalRecords =allDRecords.length;
+  const todayStr     =today();
+  const todayCount   =allDRecords.filter(r=>r.date===todayStr).length;
+  const punished     =allStudents.filter(s=>getOffenseCount(s.id)>=3).length;
+
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eff6ff"><i class="fas fa-users" style="color:#2563eb"></i></div>
+      <div class="stat-info"><h3>${totalStudents}</h3><p>Total Students</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef3c7"><i class="fas fa-file-alt" style="color:#d97706"></i></div>
+      <div class="stat-info"><h3>${totalRecords}</h3><p>Total Records</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#dcfce7"><i class="fas fa-calendar-day" style="color:#16a34a"></i></div>
+      <div class="stat-info"><h3>${todayCount}</h3><p>Today's Records</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--danger-light)"><i class="fas fa-ban" style="color:var(--danger)"></i></div>
+      <div class="stat-info"><h3>${punished}</h3><p>Punished Students</p></div>
+    </div>`;
+
+  // Recent records
+  const recent=allDRecords.slice(0,6);
+  document.getElementById('recentRecords').innerHTML=recent.length===0
+    ?`<div class="empty-state"><i class="fas fa-inbox"></i><h3>No Records Yet</h3><p>Use Smart Search to add the first discipline record.</p></div>`
+    :`<div class="table-container"><table>
+      <thead><tr><th>Student</th><th>Class</th><th>Date</th><th>Reason</th><th>Status</th></tr></thead>
+      <tbody>${recent.map(r=>{
+        const stu=allStudents.find(s=>s.id===r.student_id);
+        const cnt=stu?getOffenseCount(stu.id):0;
+        return`<tr>
+          <td><strong>${esc(stu?stu.name:'Unknown')}</strong></td>
+          <td>${esc(stu?stu.class:'-')}</td>
+          <td>${formatDate(r.date)}</td>
+          <td>${esc(r.reason)}</td>
+          <td>${statusBadge(cnt)}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
+
+  // Status breakdown
+  const warn=allStudents.filter(s=>getOffenseCount(s.id)===1).length;
+  const final=allStudents.filter(s=>getOffenseCount(s.id)===2).length;
+  document.getElementById('statusBreakdown').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+      <div style="text-align:center;padding:16px;background:#fef3c7;border-radius:10px">
+        <div style="font-size:24px;font-weight:700;color:#92400e">${warn}</div>
+        <div style="font-size:12px;color:#92400e;font-weight:600;margin-top:4px"><i class="fas fa-triangle-exclamation"></i> Warning</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:#fde8d8;border-radius:10px">
+        <div style="font-size:24px;font-weight:700;color:#c2410c">${final}</div>
+        <div style="font-size:12px;color:#c2410c;font-weight:600;margin-top:4px"><i class="fas fa-exclamation-circle"></i> Final Warning</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--danger-light);border-radius:10px">
+        <div style="font-size:24px;font-weight:700;color:var(--danger)">${punished}</div>
+        <div style="font-size:12px;color:var(--danger);font-weight:600;margin-top:4px"><i class="fas fa-ban"></i> Punished</div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ALL RECORDS TABLE
+// ═══════════════════════════════════════════════════════════════
+let recSearchTimer=null;
+function handleRecordsSearch(){
+  clearTimeout(recSearchTimer);
+  recSearchTimer=setTimeout(()=>{allRecordsPage=1;renderAllRecordsTable();},180);
+}
+function clearAllRecordsFilters(){
+  document.getElementById('recordsSearch').value='';
+  document.getElementById('recordsClassFilter').value='';
+  document.getElementById('recordsDateFrom').value='';
+  document.getElementById('recordsDateTo').value='';
+  allRecordsPage=1; renderAllRecordsTable();
+}
+function renderAllRecordsTable(){
+  const q=(document.getElementById('recordsSearch')?.value||'').toLowerCase().trim();
+  const cls=(document.getElementById('recordsClassFilter')?.value||'').toLowerCase();
+  const dateFrom=(document.getElementById('recordsDateFrom')?.value||'');
+  const dateTo=(document.getElementById('recordsDateTo')?.value||'');
+  let joined=allDRecords.map(r=>{
+    const stu=allStudents.find(s=>s.id===r.student_id);
+    return{...r,_name:stu?stu.name:'',_class:stu?stu.class:'',_count:stu?getOffenseCount(stu.id):0,_photo:stu?stu.photo:null};
+  });
+  if(q) joined=joined.filter(r=>r._name.toLowerCase().includes(q)||r._class.toLowerCase().includes(q)||(r.reason||'').toLowerCase().includes(q));
+  if(cls) joined=joined.filter(r=>r._class.toLowerCase()===cls);
+  if(dateFrom) joined=joined.filter(r=>r.date&&r.date>=dateFrom);
+  if(dateTo)   joined=joined.filter(r=>r.date&&r.date<=dateTo);
+  filteredAllRecords=joined;
+  const total=joined.length;
+  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(allRecordsPage>totalPages)allRecordsPage=totalPages;
+  const start=(allRecordsPage-1)*PAGE_SIZE;
+  const page=joined.slice(start,start+PAGE_SIZE);
+  const body=document.getElementById('allRecordsBody');
+  const empty=document.getElementById('allRecordsEmpty');
+  if(!page.length){body.innerHTML='';empty.style.display='block';}
+  else{
+    empty.style.display='none';
+    body.innerHTML=page.map((r,i)=>{
+      const miniAvatar = r._photo
+        ? `<span class="student-mini-avatar"><img src="${esc(r._photo)}" alt="${esc(r._name)}"/></span>`
+        : `<span class="student-mini-avatar"><i class="fas fa-user"></i></span>`;
+      return`<tr>
+        <td data-label="#" style="color:var(--text-muted);font-size:12px">${start+i+1}</td>
+        <td data-label="Student">
+          ${miniAvatar}<strong style="cursor:pointer;color:var(--primary);vertical-align:middle" onclick="jumpToStudent('${r.student_id}')">${esc(r._name)}</strong>
+        </td>
+        <td data-label="Class">${esc(r._class)}</td>
+        <td data-label="Date">${formatDate(r.date)}</td>
+        <td data-label="Reason">${esc(r.reason)}</td>
+        <td data-label="Action">${r.action_taken?`<span style="font-size:12px;background:var(--success-light);color:var(--success);padding:2px 8px;border-radius:99px">${esc(r.action_taken)}</span>`:'<span style="color:var(--text-muted)">-</span>'}</td>
+        <td data-label="Status">${statusBadge(r._count)}</td>
+        <td data-label="Actions"><div class="action-btns">
+          <button class="btn btn-outline btn-sm" onclick="openEditRecord('${r.id}')" title="Edit"><i class="fas fa-pen"></i> <span>Edit</span></button>
+          <button class="btn btn-outline-danger btn-sm" onclick="openDeleteRecord('${r.id}')" title="Delete"><i class="fas fa-trash"></i> <span>Delete</span></button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('allRecordsPagInfo').textContent=total===0?'No records':`Showing ${start+1}-${Math.min(start+PAGE_SIZE,total)} of ${total} records`;
+  renderPageBtns('allRecordsPageBtns',totalPages,allRecordsPage,p=>{allRecordsPage=p;renderAllRecordsTable();});
+}
+function jumpToStudent(sid){
+  const stu=allStudents.find(s=>s.id===sid);
+  if(!stu)return;
+  switchView('search');
+  document.getElementById('smartSearchInput').value=stu.name;
+  showStudentFound(sid);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ALL RECORDS PDF EXPORT
+// ═══════════════════════════════════════════════════════════════
+async function exportAllRecordsPDF(){
+  if(!window.jspdf){showToast('PDF library not loaded yet, please wait.','error');return;}
+  if(!filteredAllRecords.length){showToast('No records to export. Adjust your filters first.','error');return;}
+  const btn=document.getElementById('exportAllPdfBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Generating...';
+  showLoading('Generating PDF...');
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210, M=12;
+  const dateFrom=(document.getElementById('recordsDateFrom')?.value||'');
+  const dateTo=(document.getElementById('recordsDateTo')?.value||'');
+  const dateRange = dateFrom||dateTo
+    ? `${dateFrom?'From: '+formatDate(dateFrom):''}${dateFrom&&dateTo?' — ':''}${dateTo?'To: '+formatDate(dateTo):''}`
+    : 'All Dates';
+
+  // ── Helper to add page header
+  function addPageHeader(doc,pageNum,totalFiltered){
+    doc.setFillColor(37,99,235);
+    doc.rect(0,0,W,32,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(16);doc.setFont('helvetica','bold');
+    doc.text('DISCIPLINE RECORDS REPORT',M,13);
+    doc.setFontSize(8);doc.setFont('helvetica','normal');
+    doc.text('School Administration Portal  •  Confidential',M,20);
+    doc.text('Generated: '+new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}),W-M,20,{align:'right'});
+    doc.text('Date Range: '+dateRange+'   |   Total Records: '+totalFiltered,M,27);
+    doc.text('Page '+pageNum,W-M,27,{align:'right'});
+  }
+
+  // ── Column layout (with photo column)
+  // Photo | # | Student Name | Class | Date | Reason | Action Taken
+  const COL={photo:M, num:M+20, name:M+28, cls:M+80, date:M+112, reason:M+143, action:M+183};
+  const ROW_H=16; // taller row to fit photo
+  const HEADER_H=8;
+  const PAGE_TOP=38; // y after page header
+  const PAGE_BOTTOM=284;
+
+  let pageNum=1;
+  addPageHeader(doc,pageNum,filteredAllRecords.length);
+
+  // Draw table header
+  function drawTableHeader(y){
+    doc.setFillColor(37,99,235);
+    doc.rect(M,y,W-M*2,HEADER_H,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont('helvetica','bold');
+    doc.text('PHOTO',COL.photo+1,y+5.5);
+    doc.text('#',COL.num,y+5.5);
+    doc.text('STUDENT NAME',COL.name,y+5.5);
+    doc.text('CLASS',COL.cls,y+5.5);
+    doc.text('DATE',COL.date,y+5.5);
+    doc.text('REASON / OFFENSE',COL.reason,y+5.5);
+    doc.text('ACTION TAKEN',COL.action,y+5.5);
+    return y+HEADER_H;
+  }
+
+  let y=PAGE_TOP;
+  y=drawTableHeader(y);
+
+  for(let i=0;i<filteredAllRecords.length;i++){
+    const r=filteredAllRecords[i];
+    // Check page break
+    if(y+ROW_H>PAGE_BOTTOM){
+      pageNum++;
+      doc.addPage();
+      addPageHeader(doc,pageNum,filteredAllRecords.length);
+      y=PAGE_TOP;
+      y=drawTableHeader(y);
+    }
+    const bg=i%2===0?[255,255,255]:[248,250,252];
+    doc.setFillColor(...bg);
+    doc.rect(M,y,W-M*2,ROW_H,'F');
+    doc.setDrawColor(226,232,240);
+    doc.rect(M,y,W-M*2,ROW_H);
+
+    // ── Student photo
+    if(r._photo && r._photo.startsWith('data:')){
+      try{
+        const imgType=r._photo.split(';')[0].split('/')[1].toUpperCase();
+        doc.addImage(r._photo,imgType,COL.photo+0.5,y+1,13,13);
+      }catch(e){
+        // fallback: draw placeholder box
+        doc.setFillColor(203,213,225);
+        doc.roundedRect(COL.photo+0.5,y+1,13,13,2,2,'F');
+        doc.setTextColor(100,116,139);doc.setFontSize(6);doc.setFont('helvetica','normal');
+        doc.text('N/A',COL.photo+5,y+8.5);
+      }
+    }else{
+      doc.setFillColor(219,234,254);
+      doc.roundedRect(COL.photo+0.5,y+1,13,13,2,2,'F');
+      doc.setTextColor(100,116,139);doc.setFontSize(6);doc.setFont('helvetica','normal');
+      doc.text('No Img',COL.photo+1,y+8.5);
+    }
+
+    doc.setTextColor(30,41,59);doc.setFontSize(8);doc.setFont('helvetica','normal');
+    // #
+    doc.text(String(i+1),COL.num,y+9);
+    // Student Name
+    const nameLines=doc.splitTextToSize(r._name||'-',48);
+    doc.setFont('helvetica','bold');
+    doc.text(nameLines[0],COL.name,y+7);
+    if(nameLines[1]){doc.setFontSize(7);doc.text(nameLines[1],COL.name,y+11);doc.setFontSize(8);}
+    doc.setFont('helvetica','normal');
+    // Class
+    doc.text(r._class||'-',COL.cls,y+9);
+    // Date
+    const dStr=r.date?new Date(r.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'-';
+    doc.text(dStr,COL.date,y+9);
+    // Reason
+    const reasonTxt=doc.splitTextToSize(r.reason||'-',37);
+    doc.text(reasonTxt[0]+(reasonTxt.length>1?'…':''),COL.reason,y+7);
+    if(reasonTxt[1]){doc.setFontSize(7);doc.text(reasonTxt[1],COL.reason,y+11);doc.setFontSize(8);}
+    // Action
+    const actionTxt=doc.splitTextToSize(r.action_taken||'—',24);
+    doc.setTextColor(22,163,74);doc.setFontSize(7);
+    doc.text(actionTxt[0]+(actionTxt.length>1?'…':''),COL.action,y+9);
+    doc.setTextColor(30,41,59);doc.setFontSize(8);
+
+    y+=ROW_H;
+  }
+
+  // ── Footer on all pages
+  const totalPages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=totalPages;p++){
+    doc.setPage(p);
+    doc.setFillColor(37,99,235);
+    doc.rect(0,285,W,12,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(7);
+    doc.text('© Dotcom One  •  Confidential Discipline Records Report  •  Page '+p+' of '+totalPages,W/2,292,{align:'center'});
+  }
+
+  const ts=new Date().toISOString().slice(0,10);
+  doc.save('Discipline_Records_'+ts+'.pdf');
+  showToast('PDF exported — '+filteredAllRecords.length+' record(s)','success');
+  btn.disabled=false; btn.innerHTML='<i class="fas fa-file-pdf"></i> Export PDF';
+  hideLoading();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STUDENTS TABLE
+// ═══════════════════════════════════════════════════════════════
+function renderStudentsTable(){
+  const q=(document.getElementById('studentsSearch')?.value||'').toLowerCase().trim();
+  let list=allStudents;
+  if(q) list=list.filter(s=>s.name.toLowerCase().includes(q)||(s.index_number||'').toLowerCase().includes(q)||(s.class||'').toLowerCase().includes(q));
+  const body=document.getElementById('studentsBody');
+  const empty=document.getElementById('studentsEmpty');
+  if(!list.length){body.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  body.innerHTML=list.map((s,i)=>{
+    const cnt=getOffenseCount(s.id);
+    const miniAvatar = s.photo
+      ? `<span class="student-mini-avatar"><img src="${esc(s.photo)}" alt="${esc(s.name)}"/></span>`
+      : `<span class="student-mini-avatar"><i class="fas fa-user"></i></span>`;
+    const waNum=s.whatsapp_number||'';
+    const waBtnHtml=waNum
+      ? `<button class="btn btn-sm" style="background:#25D366;color:white" onclick="window.open('https://wa.me/${waNum}','_blank')" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>`
+      : `<button class="btn btn-sm btn-secondary" title="No WhatsApp number" disabled><i class="fab fa-whatsapp"></i></button>`;
+    return`<tr>
+      <td data-label="#" style="color:var(--text-muted);font-size:12px">${i+1}</td>
+      <td data-label="Name">${miniAvatar}<strong style="cursor:pointer;color:var(--primary);vertical-align:middle" onclick="jumpToStudent('${s.id}')">${esc(s.name)}</strong></td>
+      <td data-label="Class">${esc(s.class)}</td>
+      <td data-label="Index No.">${esc(s.index_number||'-')}</td>
+      <td data-label="WhatsApp">${waNum?`<span style="font-size:12px;color:#25D366;font-weight:600"><i class="fab fa-whatsapp"></i> ${esc(waNum)}</span>`:'<span style="color:var(--text-muted);font-size:12px">-</span>'}</td>
+      <td data-label="Offenses"><span class="offense-count"><i class="fas fa-file-alt"></i> ${cnt}</span></td>
+      <td data-label="Status">${statusBadge(cnt)}</td>
+      <td data-label="Actions"><div class="action-btns">
+        <button class="btn btn-primary btn-sm" onclick="jumpToStudent('${s.id}')"><i class="fas fa-search"></i> <span>View</span></button>
+        <button class="btn btn-purple btn-sm" onclick="openEditStudent('${s.id}')" title="Edit"><i class="fas fa-pen"></i> <span>Edit</span></button>
+        ${waBtnHtml}
+        <button class="btn btn-success btn-sm" onclick="exportStudentPDF('${s.id}')" title="Export PDF"><i class="fas fa-file-pdf"></i></button>
+        <button class="btn btn-outline-danger btn-sm" onclick="openDeleteStudent('${s.id}','${esc(s.name).replace(/'/g,"\\'")}')" title="Remove"><i class="fas fa-user-minus"></i></button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PAGINATION HELPER
+// ═══════════════════════════════════════════════════════════════
+function renderPageBtns(containerId,totalPages,currentPage,onPageClick){
+  const c=document.getElementById(containerId);
+  let html=`<button class="page-btn" onclick="(${onPageClick})(${currentPage-1})" ${currentPage===1?'disabled':''}><i class="fas fa-chevron-left"></i></button>`;
+  const range=[];
+  for(let i=1;i<=totalPages;i++){
+    if(i===1||i===totalPages||(i>=currentPage-2&&i<=currentPage+2)) range.push(i);
+    else if(range[range.length-1]!=='...') range.push('...');
+  }
+  range.forEach(p=>{
+    if(p==='...') html+=`<span class="page-btn" style="cursor:default">...</span>`;
+    else html+=`<button class="page-btn ${p===currentPage?'active':''}" onclick="(${onPageClick})(${p})">${p}</button>`;
+  });
+  html+=`<button class="page-btn" onclick="(${onPageClick})(${currentPage+1})" ${currentPage===totalPages?'disabled':''}><i class="fas fa-chevron-right"></i></button>`;
+  c.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WHATSAPP HELPERS
+// ═══════════════════════════════════════════════════════════════
+function openWhatsAppForStudent(sid){
+  const student=allStudents.find(s=>s.id===sid);
+  if(!student){showToast('Student not found.','error');return;}
+  const phone=student.whatsapp_number;
+  if(!phone||!validateWhatsApp(phone)){
+    showToast('Please add a WhatsApp number before sending. Edit the student profile first.','error');
+    return;
+  }
+  window.open('https://wa.me/'+phone,'_blank');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LETTERS TAB
+// ═══════════════════════════════════════════════════════════════
+let letterSelectedStudentId=null;
+
+const LETTER_REASONS={
+  hair_not_cut:'The student has reported to school with hair that does not conform to the grooming standards required by the school regulations. He has been advised to obtain a proper haircut suitable for the school environment.',
+  hair_length:'The student\'s hair length has been observed to exceed the acceptable limit set by the school rules. Immediate attention is required to maintain compliance with the school\'s grooming expectations.',
+  improper_hairstyle:'The student has been observed maintaining a hairstyle that is not considered appropriate for the school setting. Students are expected to maintain simple and neat hairstyles at all times.',
+  beard_not_shaved:'The student has reported to school without shaving facial hair, which does not align with the grooming standards expected of students. He has been instructed to maintain proper personal grooming.',
+  repeated_grooming:'The student has repeatedly failed to comply with the school\'s grooming standards despite prior instructions and reminders. Continued non-compliance may result in further disciplinary action.',
+  failure_instructions:'The student has failed to follow instructions given by school authorities or prefects. Students are expected to cooperate respectfully with school staff and leadership.',
+  disruptive_behavior:'The student has engaged in behavior that disrupted the normal functioning of the classroom or school environment. Such conduct is not acceptable within the school community.',
+  inappropriate_language:'The student has been reported for using language that is considered inappropriate within the school setting. Students are expected to communicate respectfully at all times.',
+  late_arrival:'The student has repeatedly arrived late to school without a valid reason. Punctuality is an essential expectation for all students.',
+  leaving_premises:'The student has been observed leaving the classroom or school premises without obtaining proper permission from the relevant authority.',
+  failure_discipline:'The student has displayed behavior that does not reflect the discipline expected from a student of the college. He has been advised to correct his conduct immediately.',
+  repeated_disciplinary:'The student has been involved in repeated disciplinary concerns despite previous warnings. Continued behavior of this nature may lead to further administrative action.',
+  improper_uniform:'The student has reported to school wearing a uniform that does not comply with the prescribed school uniform standards.',
+  incomplete_uniform:'The student has attended school without wearing the complete required uniform.',
+  parent_meeting:'The student has been involved in a matter of concern that requires immediate attention. You are respectfully requested to attend a meeting at the school at the earliest convenient time to discuss the situation with the school authorities.',
+  custom:null
+};
+
+function initLettersView(){
+  document.getElementById('letterSearchInput').value='';
+  document.getElementById('letterAutocompleteList').style.display='none';
+  document.getElementById('letterStudentPanel').style.display='none';
+  document.getElementById('letterReasonSelect').value='';
+  document.getElementById('letterCustomReasonGroup').style.display='none';
+  document.getElementById('letterPreviewGroup').style.display='none';
+  letterSelectedStudentId=null;
+}
+
+function onLetterSearchInput(){
+  const q=document.getElementById('letterSearchInput').value.trim().toLowerCase();
+  const list=document.getElementById('letterAutocompleteList');
+  if(q.length<1){list.style.display='none';return;}
+  const matches=allStudents.filter(s=>
+    s.name.toLowerCase().includes(q)||(s.index_number||'').toLowerCase().includes(q)
+  ).slice(0,8);
+  if(!matches.length){list.style.display='none';return;}
+  list.innerHTML=matches.map(s=>{
+    const thumb=s.photo
+      ?`<img src="${esc(s.photo)}" style="width:28px;height:28px;border-radius:7px;object-fit:cover;flex-shrink:0"/>`
+      :`<i class="fas fa-user-circle" style="color:var(--primary);font-size:20px"></i>`;
+    const wa=s.whatsapp_number?`<span style="color:#25D366;font-size:11px"><i class="fab fa-whatsapp"></i> ${esc(s.whatsapp_number)}</span>`:'<span style="color:var(--danger);font-size:11px">No WhatsApp</span>';
+    return`<div class="autocomplete-item" onclick="selectLetterStudent('${s.id}')">
+      ${thumb}
+      <div><div class="ac-name">${esc(s.name)}</div>
+      <div class="ac-meta">${esc(s.class)}${s.index_number?' · '+esc(s.index_number):''} ${wa?'· ':''}${wa}</div></div>
+    </div>`;
+  }).join('');
+  list.style.display='block';
+}
+
+function selectLetterStudent(sid){
+  document.getElementById('letterAutocompleteList').style.display='none';
+  const student=allStudents.find(s=>s.id===sid);
+  if(!student)return;
+  document.getElementById('letterSearchInput').value=student.name;
+  letterSelectedStudentId=sid;
+
+  // Populate panel
+  document.getElementById('letterStudentAvatar').innerHTML=avatarHtml(student,52,13);
+  document.getElementById('letterStudentName').textContent=student.name;
+  document.getElementById('letterStudentMeta').textContent=student.class+(student.index_number?' · Index: '+student.index_number:'');
+  const phone=student.whatsapp_number;
+  const waEl=document.getElementById('letterWhatsAppDisplay');
+  if(phone&&validateWhatsApp(phone)){
+    waEl.innerHTML=`<i class="fab fa-whatsapp"></i> ${esc(phone)}`;
+  }else{
+    waEl.innerHTML=`<span style="color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> No WhatsApp number — please edit student profile first</span>`;
+  }
+
+  // Reset reason
+  document.getElementById('letterReasonSelect').value='';
+  document.getElementById('letterCustomReasonGroup').style.display='none';
+  document.getElementById('letterPreviewGroup').style.display='none';
+  document.getElementById('letterStudentPanel').style.display='block';
+}
+
+function onLetterReasonChange(){
+  const val=document.getElementById('letterReasonSelect').value;
+  document.getElementById('letterCustomReasonGroup').style.display=val==='custom'?'block':'none';
+  if(val) generateLetterPreview();
+  else document.getElementById('letterPreviewGroup').style.display='none';
+}
+
+function generateLetterPreview(){
+  const student=allStudents.find(s=>s.id===letterSelectedStudentId);
+  if(!student)return;
+  const val=document.getElementById('letterReasonSelect').value;
+  if(!val){document.getElementById('letterPreviewGroup').style.display='none';return;}
+  let reasonText=LETTER_REASONS[val];
+  if(val==='custom'){
+    reasonText=document.getElementById('letterCustomReason').value.trim();
+    if(!reasonText)return;
+  }
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const letter=`Dear Parent / Guardian,
+
+We are writing to bring to your attention a matter concerning your child, ${student.name} (Class: ${student.class}${student.index_number?', Index: '+student.index_number:''}).
+
+${reasonText}
+
+We kindly request that you contact the school administration or schedule a meeting at your earliest convenience to discuss this matter and work together on a suitable course of action.
+
+Please do not hesitate to contact the school administration for further information.
+
+Yours sincerely,
+School Administration
+Date: ${today}`;
+
+  document.getElementById('letterPreview').value=letter;
+  document.getElementById('letterPreviewGroup').style.display='block';
+}
+
+function sendWhatsAppLetter(){
+  const student=allStudents.find(s=>s.id===letterSelectedStudentId);
+  if(!student){showToast('Please select a student first.','error');return;}
+  const phone=student.whatsapp_number;
+  if(!phone||!validateWhatsApp(phone)){
+    showToast('Please add a WhatsApp number before sending the letter.','error');
+    return;
+  }
+  const message=document.getElementById('letterPreview').value.trim();
+  if(!message){showToast('Please generate a letter first.','error');return;}
+  const url='https://wa.me/'+phone+'?text='+encodeURIComponent(message);
+  window.open(url,'_blank');
+  showToast('WhatsApp opened for '+student.name,'success');
+}
+
+// Close letter autocomplete on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#letterSearchInput')&&!e.target.closest('#letterAutocompleteList'))
+    document.getElementById('letterAutocompleteList').style.display='none';
+});
+</script>
+</body>
+</html>
